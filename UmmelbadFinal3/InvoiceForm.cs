@@ -1,8 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using UmmelbadFinal3.Models;
@@ -18,7 +18,9 @@ namespace UmmelbadFinal3
         private readonly InvoiceService _invoiceService;
         private readonly InvoiceNumberService _invoiceNumberService;
         private readonly PdfService _pdfService;
+        private readonly CustomerService _customerService;
 
+        private readonly ComboBox _cmbCustomers = new();
         private readonly TextBox _txtCustomerName = new();
         private readonly TextBox _txtCustomerAddress = new();
         private readonly TextBox _txtCustomerCity = new();
@@ -34,18 +36,22 @@ namespace UmmelbadFinal3
         private readonly Label _lblTax = new();
         private readonly Label _lblGross = new();
 
+        private List<Customer> _customers = new();
+
         public InvoiceForm()
         {
             var baseDir = AppDomain.CurrentDomain.BaseDirectory;
             _invoiceService = new InvoiceService(baseDir);
             _invoiceNumberService = new InvoiceNumberService(baseDir);
             _pdfService = new PdfService(baseDir);
+            _customerService = new CustomerService(baseDir);
 
             InitializeComponent();
             ConfigureDataGridView();
             _dgvPositions.DataSource = _items;
             _items.ListChanged += (_, _) => UpdateTotals();
 
+            LoadCustomers();
             ResetInvoice();
         }
 
@@ -78,7 +84,7 @@ namespace UmmelbadFinal3
             var grid = new TableLayoutPanel
             {
                 ColumnCount = 4,
-                RowCount = 3,
+                RowCount = 4,
                 Dock = DockStyle.Top,
                 AutoSize = true,
                 Padding = new Padding(4)
@@ -89,10 +95,16 @@ namespace UmmelbadFinal3
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
 
-            for (int i = 0; i < 3; i++)
+            for (var i = 0; i < 4; i++)
             {
                 grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             }
+
+            _cmbCustomers.Name = "cmbCustomers";
+            _cmbCustomers.Dock = DockStyle.Fill;
+            _cmbCustomers.DropDownStyle = ComboBoxStyle.DropDown;
+            _cmbCustomers.DisplayMember = nameof(Customer.Name);
+            _cmbCustomers.SelectedIndexChanged += (_, _) => FillCustomerFieldsFromSelection();
 
             ConfigureCustomerTextBox(_txtCustomerName);
             ConfigureCustomerTextBox(_txtCustomerAddress);
@@ -100,11 +112,12 @@ namespace UmmelbadFinal3
             ConfigureCustomerTextBox(_txtCustomerEmail);
             ConfigureCustomerTextBox(_txtCustomerPhone);
 
-            AddCustomerField(grid, "Name", _txtCustomerName, 0, 0);
-            AddCustomerField(grid, "Adresse", _txtCustomerAddress, 2, 0);
-            AddCustomerField(grid, "PLZ/Ort", _txtCustomerCity, 0, 1);
-            AddCustomerField(grid, "E-Mail", _txtCustomerEmail, 2, 1);
-            AddCustomerField(grid, "Telefon", _txtCustomerPhone, 0, 2);
+            AddCustomerField(grid, "Kunde", _cmbCustomers, 0, 0);
+            AddCustomerField(grid, "Name", _txtCustomerName, 0, 1);
+            AddCustomerField(grid, "Adresse", _txtCustomerAddress, 2, 1);
+            AddCustomerField(grid, "PLZ/Ort", _txtCustomerCity, 0, 2);
+            AddCustomerField(grid, "E-Mail", _txtCustomerEmail, 2, 2);
+            AddCustomerField(grid, "Telefon", _txtCustomerPhone, 0, 3);
 
             panel.Controls.Add(grid);
             return panel;
@@ -138,14 +151,16 @@ namespace UmmelbadFinal3
             var btnSave = new Button { Text = "Rechnung speichern", AutoSize = true };
             var btnLoad = new Button { Text = "Rechnung laden", AutoSize = true };
             var btnPdf = new Button { Text = "PDF erstellen", AutoSize = true };
+            var btnList = new Button { Text = "Rechnungsübersicht", AutoSize = true };
 
             btnAdd.Click += (_, _) => AddPosition();
             btnDelete.Click += (_, _) => DeleteSelectedPosition();
             btnSave.Click += (_, _) => SaveInvoice();
             btnLoad.Click += (_, _) => LoadInvoice();
             btnPdf.Click += (_, _) => ExportPdf();
+            btnList.Click += (_, _) => OpenInvoiceList();
 
-            panel.Controls.AddRange(new Control[] { btnAdd, btnDelete, btnSave, btnLoad, btnPdf });
+            panel.Controls.AddRange(new Control[] { btnAdd, btnDelete, btnSave, btnLoad, btnPdf, btnList });
             return panel;
         }
 
@@ -166,7 +181,7 @@ namespace UmmelbadFinal3
             return panel;
         }
 
-        private static void AddCustomerField(TableLayoutPanel grid, string text, TextBox textBox, int labelColumn, int row)
+        private static void AddCustomerField(TableLayoutPanel grid, string text, Control control, int labelColumn, int row)
         {
             var label = new Label
             {
@@ -176,11 +191,11 @@ namespace UmmelbadFinal3
                 Margin = new Padding(4)
             };
 
-            textBox.Dock = DockStyle.Fill;
-            textBox.Margin = new Padding(4);
+            control.Dock = DockStyle.Fill;
+            control.Margin = new Padding(4);
 
             grid.Controls.Add(label, labelColumn, row);
-            grid.Controls.Add(textBox, labelColumn + 1, row);
+            grid.Controls.Add(control, labelColumn + 1, row);
         }
 
         private static void ConfigureCustomerTextBox(TextBox textBox)
@@ -265,16 +280,51 @@ namespace UmmelbadFinal3
             _txtInvoiceNumber.Text = _invoiceNumberService.GetNextInvoiceNumber(DateTime.Today);
             _dtpInvoiceDate.Value = DateTime.Today;
             _dtpServiceDate.Checked = false;
+            _cmbCustomers.SelectedIndex = -1;
+            _cmbCustomers.Text = string.Empty;
+            ClearCustomerFields();
             _items.Clear();
             AddPosition();
             UpdateTotals();
+        }
+
+        private void LoadCustomers()
+        {
+            _customers = _customerService.LoadCustomers();
+            _cmbCustomers.DataSource = null;
+            _cmbCustomers.DataSource = _customers;
+            _cmbCustomers.DisplayMember = nameof(Customer.Name);
+            _cmbCustomers.SelectedIndex = -1;
+        }
+
+        private void FillCustomerFieldsFromSelection()
+        {
+            if (_cmbCustomers.SelectedItem is not Customer selected)
+            {
+                return;
+            }
+
+            _txtCustomerName.Text = selected.Name;
+            _txtCustomerAddress.Text = selected.Address;
+            _txtCustomerCity.Text = selected.City;
+            _txtCustomerEmail.Text = selected.Email;
+            _txtCustomerPhone.Text = selected.Phone;
+        }
+
+        private void ClearCustomerFields()
+        {
+            _txtCustomerName.Text = string.Empty;
+            _txtCustomerAddress.Text = string.Empty;
+            _txtCustomerCity.Text = string.Empty;
+            _txtCustomerEmail.Text = string.Empty;
+            _txtCustomerPhone.Text = string.Empty;
         }
 
         private bool ValidateInvoice()
         {
             if (string.IsNullOrWhiteSpace(_txtCustomerName.Text))
             {
-                ShowValidation("Kunde darf nicht leer sein.");
+                ShowValidation("Name ist Pflichtfeld.");
                 return false;
             }
 
@@ -293,18 +343,28 @@ namespace UmmelbadFinal3
             return true;
         }
 
+        private Customer BuildCustomerFromUi()
+        {
+            return new Customer
+            {
+                Name = _txtCustomerName.Text.Trim(),
+                Address = _txtCustomerAddress.Text.Trim(),
+                City = _txtCustomerCity.Text.Trim(),
+                Email = _txtCustomerEmail.Text.Trim(),
+                Phone = _txtCustomerPhone.Text.Trim()
+            };
+        }
+
         private Invoice BuildInvoiceFromUi()
         {
+            var customer = BuildCustomerFromUi();
             return new Invoice
             {
                 InvoiceNumber = _txtInvoiceNumber.Text,
                 InvoiceDate = _dtpInvoiceDate.Value.Date,
                 ServiceDate = _dtpServiceDate.Checked ? _dtpServiceDate.Value.Date : null,
-                CustomerName = _txtCustomerName.Text.Trim(),
-                CustomerAddress = _txtCustomerAddress.Text.Trim(),
-                CustomerCity = _txtCustomerCity.Text.Trim(),
-                CustomerEmail = _txtCustomerEmail.Text.Trim(),
-                CustomerPhone = _txtCustomerPhone.Text.Trim(),
+                Customer = customer,
+                CustomerNameSnapshot = customer.Name,
                 Items = _items.ToList()
             };
         }
@@ -319,11 +379,12 @@ namespace UmmelbadFinal3
                 _dtpServiceDate.Value = invoice.ServiceDate.Value;
             }
 
-            _txtCustomerName.Text = invoice.CustomerName;
-            _txtCustomerAddress.Text = invoice.CustomerAddress;
-            _txtCustomerCity.Text = invoice.CustomerCity;
-            _txtCustomerEmail.Text = invoice.CustomerEmail;
-            _txtCustomerPhone.Text = invoice.CustomerPhone;
+            _txtCustomerName.Text = invoice.Customer.Name;
+            _txtCustomerAddress.Text = invoice.Customer.Address;
+            _txtCustomerCity.Text = invoice.Customer.City;
+            _txtCustomerEmail.Text = invoice.Customer.Email;
+            _txtCustomerPhone.Text = invoice.Customer.Phone;
+            _cmbCustomers.SelectedIndex = _customers.FindIndex(c => c.Id == invoice.Customer.Id);
 
             _items.Clear();
             foreach (var item in invoice.Items)
@@ -337,8 +398,15 @@ namespace UmmelbadFinal3
         private void SaveInvoice()
         {
             if (!ValidateInvoice()) return;
+
             var invoice = BuildInvoiceFromUi();
+            var customer = _customerService.GetOrCreateCustomer(_customers, invoice.Customer);
+            invoice.Customer = customer;
+            invoice.CustomerNameSnapshot = customer.Name;
+
             var path = _invoiceService.Save(invoice);
+            LoadCustomers();
+
             MessageBox.Show($"Gespeichert: {path}", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
             ResetInvoice();
         }
@@ -359,6 +427,12 @@ namespace UmmelbadFinal3
                     FillUiFromInvoice(invoice);
                 }
             }
+        }
+
+        private void OpenInvoiceList()
+        {
+            using var listForm = new InvoiceListForm(_invoiceService, FillUiFromInvoice);
+            listForm.ShowDialog(this);
         }
 
         private void ExportPdf()
