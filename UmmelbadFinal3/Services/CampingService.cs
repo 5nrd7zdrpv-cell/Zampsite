@@ -51,16 +51,40 @@ namespace UmmelbadFinal3.Services
 
         private void EnsureDefaults()
         {
-            if (!File.Exists(_stellplaetzeFile))
-            {
-                var defaults = Enumerable.Range(1, 20)
-                    .Select(i => new Stellplatz { Id = i, Nummer = $"SP-{i:00}" })
-                    .ToList();
-                SaveStellplaetze(defaults);
-            }
+            InitializeStellplaetze();
 
             if (!File.Exists(_buchungenFile)) SaveBuchungen(new List<Buchung>());
             if (!File.Exists(_cafeFile)) SaveCafeVerkaeufe(new List<CafeVerkauf>());
+        }
+
+        public void InitializeStellplaetze()
+        {
+            var bestehendeStellplaetze = LoadStellplaetze();
+            if (bestehendeStellplaetze.Count > 0) return;
+
+            const int anzahlSpalten = 25;
+            const decimal abstandX = 10m;
+            const decimal abstandY = 10m;
+
+            var stellplaetze = Enumerable.Range(1, 250)
+                .Select(i =>
+                {
+                    var index = i - 1;
+                    var spalte = index % anzahlSpalten;
+                    var zeile = index / anzahlSpalten;
+
+                    return new Stellplatz
+                    {
+                        Id = i,
+                        Nummer = $"SP-{i:000}",
+                        PosX = spalte * abstandX,
+                        PosY = zeile * abstandY,
+                        Status = StellplatzStatus.Frei
+                    };
+                })
+                .ToList();
+
+            SaveStellplaetze(stellplaetze);
         }
 
         private T? Load<T>(string path)
