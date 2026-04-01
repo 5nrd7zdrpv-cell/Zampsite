@@ -9,7 +9,7 @@ namespace UmmelbadFinal3
         static void Main()
         {
             ApplicationConfiguration.Initialize();
-            Application.Run(new InvoiceForm());
+            Application.Run(new CampingDashboardForm());
         }
     }
 }
