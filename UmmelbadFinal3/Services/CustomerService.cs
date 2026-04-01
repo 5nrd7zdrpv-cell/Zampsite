@@ -31,9 +31,12 @@ namespace UmmelbadFinal3.Services
 
         public Customer GetOrCreateCustomer(List<Customer> customers, Customer inputCustomer)
         {
+            var inputName = Normalize(inputCustomer.Name);
+            var inputAddress = Normalize(inputCustomer.Address);
+
             var existingCustomer = customers.FirstOrDefault(c =>
-                string.Equals(c.Name.Trim(), inputCustomer.Name.Trim(), StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(c.Address.Trim(), inputCustomer.Address.Trim(), StringComparison.OrdinalIgnoreCase));
+                string.Equals(Normalize(c.Name), inputName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(Normalize(c.Address), inputAddress, StringComparison.OrdinalIgnoreCase));
 
             if (existingCustomer != null)
             {
@@ -43,6 +46,11 @@ namespace UmmelbadFinal3.Services
             customers.Add(inputCustomer);
             SaveCustomers(customers);
             return inputCustomer;
+        }
+
+        private static string Normalize(string? value)
+        {
+            return (value ?? string.Empty).Trim();
         }
     }
 }

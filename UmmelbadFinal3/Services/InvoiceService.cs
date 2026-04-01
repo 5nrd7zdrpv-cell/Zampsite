@@ -8,6 +8,9 @@ namespace UmmelbadFinal3.Services
 {
     public class InvoiceService
     {
+        private const string InvoiceFilePrefix = "Invoice_";
+        private const string InvoiceFilePattern = "Invoice_*.json";
+
         private readonly DataService _dataService;
         private readonly string _invoiceDirectory;
         private readonly string _draftPath;
@@ -22,7 +25,7 @@ namespace UmmelbadFinal3.Services
 
         public string Save(Invoice invoice)
         {
-            var fileName = $"Invoice_{invoice.InvoiceNumber}.json";
+            var fileName = $"{InvoiceFilePrefix}{invoice.InvoiceNumber}.json";
             var path = Path.Combine(_invoiceDirectory, fileName);
             _dataService.Save(path, invoice);
             return path;
@@ -48,7 +51,7 @@ namespace UmmelbadFinal3.Services
         public List<Invoice> LoadAll()
         {
             var invoices = new List<Invoice>();
-            foreach (var file in Directory.GetFiles(_invoiceDirectory, "*.json"))
+            foreach (var file in Directory.GetFiles(_invoiceDirectory, InvoiceFilePattern))
             {
                 try
                 {
@@ -78,13 +81,13 @@ namespace UmmelbadFinal3.Services
                 return null;
             }
 
-            var exactPath = Path.Combine(_invoiceDirectory, $"Invoice_{safeInvoiceNumber}.json");
+            var exactPath = Path.Combine(_invoiceDirectory, $"{InvoiceFilePrefix}{safeInvoiceNumber}.json");
             if (File.Exists(exactPath))
             {
                 return exactPath;
             }
 
-            return Directory.GetFiles(_invoiceDirectory, "*.json")
+            return Directory.GetFiles(_invoiceDirectory, InvoiceFilePattern)
                 .FirstOrDefault(path => string.Equals(
                     Load(path)?.InvoiceNumber,
                     safeInvoiceNumber,
