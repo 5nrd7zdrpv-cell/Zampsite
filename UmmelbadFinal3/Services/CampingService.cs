@@ -54,7 +54,7 @@ namespace UmmelbadFinal3.Services
             if (!File.Exists(_stellplaetzeFile))
             {
                 var defaults = Enumerable.Range(1, 20)
-                    .Select(i => new Stellplatz { Id = i, NummerOderName = $"SP-{i:00}" })
+                    .Select(i => new Stellplatz { Id = i, Nummer = $"SP-{i:00}" })
                     .ToList();
                 SaveStellplaetze(defaults);
             }

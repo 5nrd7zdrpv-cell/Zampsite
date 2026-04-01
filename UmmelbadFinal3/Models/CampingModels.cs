@@ -12,45 +12,26 @@ namespace UmmelbadFinal3.Models
         Dauercamper
     }
 
-    public enum Zahlungsstatus
-    {
-        Offen,
-        Teilbezahlt,
-        Bezahlt
-    }
-
     public class Stellplatz
     {
         public int Id { get; set; }
-        public string NummerOderName { get; set; } = string.Empty;
+        public string Nummer { get; set; } = string.Empty;
+        public decimal PosX { get; set; }
+        public decimal PosY { get; set; }
         public StellplatzStatus Status { get; set; } = StellplatzStatus.Frei;
-        public Guid? AktuelleKundenId { get; set; }
+        public int? AktiveBuchungId { get; set; }
         public string Notizen { get; set; } = string.Empty;
-        public string Warnhinweis { get; set; } = string.Empty;
     }
 
     public class Buchung
     {
         public int Id { get; set; }
         public Guid KundenId { get; set; }
-        public int StellplatzId { get; set; }
+        public List<int> StellplatzIds { get; set; } = new();
         public DateTime Startdatum { get; set; } = DateTime.Today;
         public DateTime Enddatum { get; set; } = DateTime.Today;
-        public bool IstDauercamper { get; set; }
         public decimal Gesamtpreis { get; set; }
-        public decimal? Jahrespreis { get; set; }
-        public Zahlungsstatus Zahlungsstatus { get; set; } = Zahlungsstatus.Offen;
         public string Notizen { get; set; } = string.Empty;
-        public StromAbrechnung Strom { get; set; } = new();
-    }
-
-    public class StromAbrechnung
-    {
-        public decimal ZaehlerStart { get; set; }
-        public decimal ZaehlerEnde { get; set; }
-        public decimal PreisProKwh { get; set; } = 0.6m;
-        public decimal Verbrauch => Math.Max(0, ZaehlerEnde - ZaehlerStart);
-        public decimal Gesamt => Math.Round(Verbrauch * PreisProKwh, 2);
     }
 
     public class Produkt
