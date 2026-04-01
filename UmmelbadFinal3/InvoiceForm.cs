@@ -224,7 +224,13 @@ namespace UmmelbadFinal3
             _dgvPositions.AutoGenerateColumns = false;
             _dgvPositions.AllowUserToAddRows = false;
             _dgvPositions.RowHeadersVisible = false;
-            _dgvPositions.CellValueChanged += (_, e) => { if (e.RowIndex >= 0) UpdateTotals(); };
+            _dgvPositions.CellValueChanged += DgvPositions_CellValueChanged;
+            _dgvPositions.CellEndEdit += DgvPositions_CellEndEdit;
+            _dgvPositions.DataError += (_, e) =>
+            {
+                e.ThrowException = false;
+                e.Cancel = false;
+            };
             _dgvPositions.CurrentCellDirtyStateChanged += (_, _) =>
             {
                 if (_dgvPositions.IsCurrentCellDirty)
@@ -232,7 +238,6 @@ namespace UmmelbadFinal3
                     _dgvPositions.CommitEdit(DataGridViewDataErrorContexts.Commit);
                 }
             };
-            _dgvPositions.CellValidating += DgvPositions_CellValidating;
 
             _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(InvoiceItem.Title), HeaderText = "Titel", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
             _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(InvoiceItem.Quantity), HeaderText = "Menge", Width = 90 });
@@ -243,21 +248,70 @@ namespace UmmelbadFinal3
             _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(InvoiceItem.GrossTotal), HeaderText = "Brutto", Width = 100, ReadOnly = true });
         }
 
-        private void DgvPositions_CellValidating(object? sender, DataGridViewCellValidatingEventArgs e)
+        private void DgvPositions_CellValueChanged(object? sender, DataGridViewCellEventArgs e)
         {
-            var prop = _dgvPositions.Columns[e.ColumnIndex].DataPropertyName;
-            var input = Convert.ToString(e.FormattedValue) ?? string.Empty;
-            if (prop == nameof(InvoiceItem.Quantity) && (!decimal.TryParse(input, NumberStyles.Number, _culture, out var q) || q <= 0))
+            if (e.RowIndex < 0)
             {
-                e.Cancel = true;
-                ShowValidation("Menge muss > 0 sein.");
+                return;
             }
 
-            if (prop == nameof(InvoiceItem.UnitPrice) && (!decimal.TryParse(input, NumberStyles.Number, _culture, out var p) || p < 0))
+            if (_dgvPositions.Rows[e.RowIndex].DataBoundItem is not InvoiceItem item)
             {
-                e.Cancel = true;
-                ShowValidation("Preis muss >= 0 sein.");
+                return;
             }
+
+            var row = _dgvPositions.Rows[e.RowIndex];
+            item.Quantity = SafeParse(row.Cells[nameof(InvoiceItem.Quantity)].Value);
+            item.UnitPrice = SafeParse(row.Cells[nameof(InvoiceItem.UnitPrice)].Value);
+            item.TaxRate = SafeParse(row.Cells[nameof(InvoiceItem.TaxRate)].Value);
+
+            UpdateTotals();
+        }
+
+        private void DgvPositions_CellEndEdit(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0)
+            {
+                return;
+            }
+
+            var columnName = _dgvPositions.Columns[e.ColumnIndex].DataPropertyName;
+            if (columnName != nameof(InvoiceItem.Quantity) &&
+                columnName != nameof(InvoiceItem.UnitPrice) &&
+                columnName != nameof(InvoiceItem.TaxRate))
+            {
+                return;
+            }
+
+            var cell = _dgvPositions.Rows[e.RowIndex].Cells[e.ColumnIndex];
+            var parsed = SafeParse(cell.Value);
+            cell.Value = parsed.ToString("N2", _culture);
+        }
+
+        private decimal SafeParse(object? value)
+        {
+            if (value == null)
+            {
+                return 0m;
+            }
+
+            var text = Convert.ToString(value)?.Trim();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return 0m;
+            }
+
+            if (decimal.TryParse(text, NumberStyles.Any, _culture, out var result))
+            {
+                return result;
+            }
+
+            if (decimal.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out result))
+            {
+                return result;
+            }
+
+            return 0m;
         }
 
         private void ShowValidation(string message)
@@ -265,7 +319,7 @@ namespace UmmelbadFinal3
             MessageBox.Show(message, "Validierung", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
-        private void AddPosition() => _items.Add(new InvoiceItem { Quantity = 1, TaxRate = 19 });
+        private void AddPosition() => _items.Add(new InvoiceItem { Quantity = 1, UnitPrice = 0, TaxRate = 19 });
 
         private void DeleteSelectedPosition()
         {
