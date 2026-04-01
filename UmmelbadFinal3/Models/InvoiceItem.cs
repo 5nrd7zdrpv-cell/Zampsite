@@ -1,6 +1,6 @@
 using System;
 
-namespace UmmelbadFinal3
+namespace UmmelbadFinal3.Models
 {
     public class InvoiceItem
     {
