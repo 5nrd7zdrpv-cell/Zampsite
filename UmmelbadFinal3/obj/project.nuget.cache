@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "dgSpecHash": "bSdAWZNuvek=",
+  "success": true,
+  "projectFilePath": "C:\\InvoiceAppZampich\\UmmelbadFinal3\\UmmelbadFinal3.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Nico\\.nuget\\packages\\microsoft.data.sqlite\\7.0.0\\microsoft.data.sqlite.7.0.0.nupkg.sha512",
+    "C:\\Users\\Nico\\.nuget\\packages\\microsoft.data.sqlite.core\\7.0.0\\microsoft.data.sqlite.core.7.0.0.nupkg.sha512",
+    "C:\\Users\\Nico\\.nuget\\packages\\pdfsharpcore\\1.3.48\\pdfsharpcore.1.3.48.nupkg.sha512",
+    "C:\\Users\\Nico\\.nuget\\packages\\sharpziplib\\1.3.3\\sharpziplib.1.3.3.nupkg.sha512",
+    "C:\\Users\\Nico\\.nuget\\packages\\sixlabors.fonts\\1.0.0-beta17\\sixlabors.fonts.1.0.0-beta17.nupkg.sha512",
+    "C:\\Users\\Nico\\.nuget\\packages\\sixlabors.imagesharp\\1.0.4\\sixlabors.imagesharp.1.0.4.nupkg.sha512",
+    "C:\\Users\\Nico\\.nuget\\packages\\sqlitepclraw.bundle_e_sqlite3\\2.1.2\\sqlitepclraw.bundle_e_sqlite3.2.1.2.nupkg.sha512",
+    "C:\\Users\\Nico\\.nuget\\packages\\sqlitepclraw.core\\2.1.2\\sqlitepclraw.core.2.1.2.nupkg.sha512",
+    "C:\\Users\\Nico\\.nuget\\packages\\sqlitepclraw.lib.e_sqlite3\\2.1.2\\sqlitepclraw.lib.e_sqlite3.2.1.2.nupkg.sha512",
+    "C:\\Users\\Nico\\.nuget\\packages\\sqlitepclraw.provider.e_sqlite3\\2.1.2\\sqlitepclraw.provider.e_sqlite3.2.1.2.nupkg.sha512",
+    "C:\\Users\\Nico\\.nuget\\packages\\system.memory\\4.5.3\\system.memory.4.5.3.nupkg.sha512"
+  ],
+  "logs": []
+}
