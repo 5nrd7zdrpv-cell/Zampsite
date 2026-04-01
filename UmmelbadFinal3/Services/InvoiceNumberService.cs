@@ -6,6 +6,7 @@ namespace UmmelbadFinal3.Services
 {
     public class InvoiceNumberService
     {
+        private static readonly CounterState DefaultState = new() { Year = DateTime.Today.Year, LastNumber = 0 };
         private readonly string _counterFilePath;
 
         public InvoiceNumberService(string baseDirectory)
@@ -31,17 +32,43 @@ namespace UmmelbadFinal3.Services
         {
             if (!File.Exists(_counterFilePath))
             {
-                return new CounterState { Year = DateTime.Today.Year, LastNumber = 0 };
+                return CreateDefaultState();
             }
 
-            var json = File.ReadAllText(_counterFilePath);
-            return JsonSerializer.Deserialize<CounterState>(json) ?? new CounterState { Year = DateTime.Today.Year, LastNumber = 0 };
+            try
+            {
+                var json = File.ReadAllText(_counterFilePath);
+                return JsonSerializer.Deserialize<CounterState>(json) ?? CreateDefaultState();
+            }
+            catch (IOException)
+            {
+                return CreateDefaultState();
+            }
+            catch (JsonException)
+            {
+                return CreateDefaultState();
+            }
         }
 
         private void SaveState(CounterState state)
         {
+            var directory = Path.GetDirectoryName(_counterFilePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
             var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(_counterFilePath, json);
+        }
+
+        private static CounterState CreateDefaultState()
+        {
+            return new CounterState
+            {
+                Year = DefaultState.Year,
+                LastNumber = DefaultState.LastNumber
+            };
         }
 
         private class CounterState

@@ -19,8 +19,19 @@ namespace UmmelbadFinal3.Services
                 return fallback;
             }
 
-            var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<T>(json) ?? fallback;
+            try
+            {
+                var json = File.ReadAllText(path);
+                return JsonSerializer.Deserialize<T>(json) ?? fallback;
+            }
+            catch (IOException)
+            {
+                return fallback;
+            }
+            catch (JsonException)
+            {
+                return fallback;
+            }
         }
 
         public void Save<T>(string path, T data)
