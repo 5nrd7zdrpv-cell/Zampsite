@@ -30,7 +30,7 @@ namespace UmmelbadFinal3.Services
                 {
                     page.Margin(40);
                     page.Size(PageSizes.A4);
-                    page.DefaultTextStyle(x => x.FontSize(10));
+                    page.DefaultTextStyle(x => x.FontFamily("Times New Roman").FontSize(10));
 
                     page.Content().Element(e => ComposeContent(e, invoice));
                 });
@@ -42,7 +42,7 @@ namespace UmmelbadFinal3.Services
         private void ComposeContent(IContainer container, Invoice invoice)
         {
             var servicePeriodStart = invoice.ServiceDate ?? invoice.InvoiceDate;
-            var servicePeriodEnd = invoice.ServiceDate ?? invoice.InvoiceDate;
+            var servicePeriodEnd = invoice.InvoiceDate;
             var taxGroups = invoice.Items
                 .GroupBy(i => i.TaxRate)
                 .OrderBy(g => g.Key)
@@ -54,45 +54,43 @@ namespace UmmelbadFinal3.Services
 
             container.Column(col =>
             {
-                col.Spacing(12);
+                col.Spacing(10);
 
                 col.Item().Row(row =>
                 {
                     row.RelativeItem().Column(left =>
                     {
-                        left.Spacing(2);
-                        left.Item().Text("Ihre Firma GmbH").SemiBold();
-                        left.Item().Text("Musterstraße 1");
-                        left.Item().Text("12345 Musterstadt");
-                        left.Item().Text("Telefon: +49 123 456789");
-                        left.Item().Text("E-Mail: info@ihrefirma.de");
+                        left.Spacing(1);
+                        left.Item().Text("Waldcampingplatz Ummelbad").SemiBold();
+                        left.Item().Text("Ummelweg 100");
+                        left.Item().Text("27412 Hepstedt");
+                        left.Item().Text("Tel.: 0152-57400199");
+                        left.Item().Text("E-Mail: szampich@aol.com");
+                        left.Item().Text("Web: www.waldcampingplatz-ummelbad.de");
+                        left.Item().Text("Steuernummer: 52/150/03625");
                     });
 
-                    row.ConstantItem(190).Height(70).AlignRight().AlignTop().Element(c =>
+                    row.ConstantItem(180).AlignRight().AlignTop().Element(c =>
                     {
                         var logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logo.png");
                         if (File.Exists(logoPath))
                         {
-                            c.Image(File.ReadAllBytes(logoPath), ImageScaling.FitWidth);
+                            c.MaxWidth(180).Image(File.ReadAllBytes(logoPath), ImageScaling.FitWidth);
                         }
                     });
                 });
 
-                col.Item().Text("RECHNUNG").Bold().FontSize(20);
+                col.Item().PaddingTop(8).Text("RECHNUNG").Bold().FontSize(20);
 
-                col.Item().Row(row =>
+                col.Item().Column(data =>
                 {
-                    row.RelativeItem();
-                    row.ConstantItem(260).Column(right =>
-                    {
-                        right.Spacing(2);
-                        right.Item().Text($"Rechnungsnummer: {invoice.InvoiceNumber}");
-                        right.Item().Text($"Rechnungsdatum: {invoice.InvoiceDate:dd.MM.yyyy}");
-                        right.Item().Text($"Leistungszeitraum: {servicePeriodStart:dd.MM.yyyy} – {servicePeriodEnd:dd.MM.yyyy}");
-                    });
+                    data.Spacing(2);
+                    data.Item().Text($"Rechnungsnummer: {invoice.InvoiceNumber}");
+                    data.Item().Text($"Rechnungsdatum: {invoice.InvoiceDate:dd.MM.yyyy}");
+                    data.Item().Text($"Leistungszeitraum: {servicePeriodStart:dd.MM.yyyy} – {servicePeriodEnd:dd.MM.yyyy}");
                 });
 
-                col.Item().Column(c =>
+                col.Item().PaddingTop(4).Column(c =>
                 {
                     c.Spacing(2);
                     c.Item().Text("Leistungsempfänger:").SemiBold();
@@ -101,7 +99,7 @@ namespace UmmelbadFinal3.Services
                     c.Item().Text(invoice.CustomerCity);
                 });
 
-                col.Item().Table(table =>
+                col.Item().PaddingTop(6).Table(table =>
                 {
                     table.ColumnsDefinition(columns =>
                     {
@@ -113,9 +111,10 @@ namespace UmmelbadFinal3.Services
                     });
 
                     static IContainer HeaderCell(IContainer x) =>
-                        x.BorderBottom(1).BorderColor(Colors.Grey.Lighten1).PaddingVertical(4).PaddingHorizontal(2);
+                        x.Border(0.6f).BorderColor(Colors.Grey.Lighten2).PaddingVertical(4).PaddingHorizontal(3);
+
                     static IContainer BodyCell(IContainer x) =>
-                        x.BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten2).PaddingVertical(4).PaddingHorizontal(2);
+                        x.BorderLeft(0.6f).BorderRight(0.6f).BorderBottom(0.6f).BorderColor(Colors.Grey.Lighten2).PaddingVertical(4).PaddingHorizontal(3);
 
                     table.Header(header =>
                     {
@@ -137,7 +136,7 @@ namespace UmmelbadFinal3.Services
                     }
                 });
 
-                col.Item().AlignRight().Width(260).Column(taxCol =>
+                col.Item().AlignRight().Width(280).PaddingTop(6).Column(taxCol =>
                 {
                     taxCol.Spacing(2);
                     foreach (var group in taxGroups)
@@ -152,26 +151,34 @@ namespace UmmelbadFinal3.Services
                             r.RelativeItem().Text($"MwSt {group.TaxRate:0.##}%:");
                             r.ConstantItem(100).AlignRight().Text(group.Tax.ToString("C2", _culture));
                         });
-                        taxCol.Item().PaddingBottom(4);
+                        taxCol.Item().PaddingBottom(2);
                     }
 
-                    taxCol.Item().PaddingTop(4).BorderTop(1).BorderColor(Colors.Grey.Lighten1).Row(r =>
+                    taxCol.Item().PaddingTop(4).BorderTop(0.8f).BorderColor(Colors.Grey.Lighten2).Row(r =>
                     {
                         r.RelativeItem().Text("Gesamt:").SemiBold();
                         r.ConstantItem(100).AlignRight().Text(invoice.TotalGross.ToString("C2", _culture)).SemiBold();
                     });
                 });
 
-                col.Item().PaddingTop(8).Text("Gemäß § 12 Abs. 2 Nr. 11 UStG gelten die ausgewiesenen Steuersätze je Leistungsart.");
-                col.Item().Text("Zahlbar sofort ohne Abzug.");
+                col.Item().PaddingTop(10).Column(bank =>
+                {
+                    bank.Spacing(1);
+                    bank.Item().Text("Bankverbindung:").SemiBold();
+                    bank.Item().Text("Volksbank Grasberg");
+                    bank.Item().Text("IBAN: DE39 2916 2394 0711 4621 00");
+                });
+
+                col.Item().PaddingTop(8).Text("Gemäß § 12 Abs. 2 Nr. 11 UStG unterliegt die Vermietung von Campingflächen dem ermäßigten Steuersatz (7%).");
+                col.Item().Text("Stromlieferungen unterliegen dem Regelsteuersatz von 19%.");
+                col.Item().PaddingTop(2).Text("Zahlbar innerhalb 7 Tagen aufs angegebene Konto.");
             });
         }
 
         private string FormatQuantity(decimal quantity)
         {
             var hasFraction = quantity != decimal.Truncate(quantity);
-            var formatted = quantity.ToString(hasFraction ? "N2" : "N0", _culture);
-            return $"{formatted} Tage";
+            return quantity.ToString(hasFraction ? "N2" : "N0", _culture);
         }
 
         private sealed record TaxGroup(decimal TaxRate, decimal Net, decimal Tax);
