@@ -2,39 +2,47 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
 using UmmelbadFinal3.Models;
 
 namespace UmmelbadFinal3.Services
 {
     public class InvoiceService
     {
+        private readonly DataService _dataService;
         private readonly string _invoiceDirectory;
+        private readonly string _draftPath;
 
-        public InvoiceService(string baseDirectory)
+        public InvoiceService(string baseDirectory, DataService? dataService = null)
         {
+            _dataService = dataService ?? new DataService();
             _invoiceDirectory = Path.Combine(baseDirectory, "Invoices");
             Directory.CreateDirectory(_invoiceDirectory);
+            _draftPath = Path.Combine(_invoiceDirectory, "invoice_draft.json");
         }
 
         public string Save(Invoice invoice)
         {
             var fileName = $"Invoice_{invoice.InvoiceNumber}.json";
             var path = Path.Combine(_invoiceDirectory, fileName);
-            var json = JsonSerializer.Serialize(invoice, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(path, json);
+            _dataService.Save(path, invoice);
             return path;
         }
 
         public Invoice? Load(string path)
         {
-            if (!File.Exists(path))
-            {
-                return null;
-            }
+            return _dataService.Load<Invoice?>(path, null);
+        }
 
-            var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<Invoice>(json);
+        public void SaveDraft(Invoice invoice) => _dataService.Save(_draftPath, invoice);
+
+        public Invoice? LoadDraft() => _dataService.Load<Invoice?>(_draftPath, null);
+
+        public void DeleteDraft()
+        {
+            if (File.Exists(_draftPath))
+            {
+                File.Delete(_draftPath);
+            }
         }
 
         public List<Invoice> LoadAll()
