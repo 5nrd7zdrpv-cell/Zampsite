@@ -1,197 +1,368 @@
 using System;
+using System.ComponentModel;
+using System.Drawing;
+using System.Globalization;
+using System.Linq;
 using System.Windows.Forms;
-using PdfSharpCore.Pdf;
-using PdfSharpCore.Drawing;
-using System.IO;
 
 namespace UmmelbadFinal3
 {
     public class InvoiceForm : Form
     {
-        TextBox txtCustomer = new TextBox(){Text="Herr Mark Nehlsen"};
+        private readonly BindingList<InvoiceItem> _items = new BindingList<InvoiceItem>();
+        private readonly DataGridView _dgvPositions = new DataGridView();
+        private readonly Button _btnAddPosition = new Button();
 
-        TextBox txtDaysStay = new TextBox(){Text="4"};
-        TextBox txtPriceStay = new TextBox(){Text="35"};
+        private readonly Label _lblNet = new Label();
+        private readonly Label _lblTax = new Label();
+        private readonly Label _lblGross = new Label();
 
-        TextBox txtDaysPower = new TextBox(){Text="4"};
-        TextBox txtPricePower = new TextBox(){Text="3"};
-
-        TextBox txtDaysWaste = new TextBox(){Text="1"};
-        TextBox txtPriceWaste = new TextBox(){Text="20"};
-
-        DateTimePicker dtFrom = new DateTimePicker();
-        DateTimePicker dtTo = new DateTimePicker();
-
-        Button btn = new Button(){Text="Rechnung erstellen", Dock=DockStyle.Bottom};
+        private readonly CultureInfo _culture = new CultureInfo("de-DE");
 
         public InvoiceForm()
         {
-            Text = "Rechnung erstellen";
-            Width = 420;
-            Height = 420;
-
-            var layout = new TableLayoutPanel(){Dock=DockStyle.Fill, ColumnCount=2};
-
-            layout.Controls.Add(new Label(){Text="Kunde"},0,0);
-            layout.Controls.Add(txtCustomer,1,0);
-
-            layout.Controls.Add(new Label(){Text="Von"},0,1);
-            layout.Controls.Add(dtFrom,1,1);
-
-            layout.Controls.Add(new Label(){Text="Bis"},0,2);
-            layout.Controls.Add(dtTo,1,2);
-
-            layout.Controls.Add(new Label(){Text="--- Stellplatz ---"},0,3);
-            layout.Controls.Add(new Label(),1,3);
-
-            layout.Controls.Add(new Label(){Text="Tage"},0,4);
-            layout.Controls.Add(txtDaysStay,1,4);
-
-            layout.Controls.Add(new Label(){Text="Preis / Tag"},0,5);
-            layout.Controls.Add(txtPriceStay,1,5);
-
-            layout.Controls.Add(new Label(){Text="--- Strom ---"},0,6);
-            layout.Controls.Add(new Label(),1,6);
-
-            layout.Controls.Add(new Label(){Text="Tage"},0,7);
-            layout.Controls.Add(txtDaysPower,1,7);
-
-            layout.Controls.Add(new Label(){Text="Preis / Tag"},0,8);
-            layout.Controls.Add(txtPricePower,1,8);
-
-            layout.Controls.Add(new Label(){Text="--- Müll ---"},0,9);
-            layout.Controls.Add(new Label(),1,9);
-
-            layout.Controls.Add(new Label(){Text="Tage"},0,10);
-            layout.Controls.Add(txtDaysWaste,1,10);
-
-            layout.Controls.Add(new Label(){Text="Preis / Tag"},0,11);
-            layout.Controls.Add(txtPriceWaste,1,11);
-
-            Controls.Add(layout);
-            Controls.Add(btn);
-
-            btn.Click += (s,e)=>CreatePdf();
+            InitializeComponent();
+            ConfigureDataGridView();
+            BindData();
+            AddDefaultPosition();
         }
 
-        void CreatePdf()
+        private void InitializeComponent()
         {
-            double daysStay = double.Parse(txtDaysStay.Text);
-            double priceStay = double.Parse(txtPriceStay.Text);
+            Text = "Rechnungspositionen";
+            Width = 980;
+            Height = 620;
+            StartPosition = FormStartPosition.CenterScreen;
 
-            double daysPower = double.Parse(txtDaysPower.Text);
-            double pricePower = double.Parse(txtPricePower.Text);
-
-            double daysWaste = double.Parse(txtDaysWaste.Text);
-            double priceWaste = double.Parse(txtPriceWaste.Text);
-
-            double net7 = daysStay * priceStay;
-            double vat7 = net7 * 0.07;
-
-            double net19_power = daysPower * pricePower;
-            double net19_waste = daysWaste * priceWaste;
-            double net19 = net19_power + net19_waste;
-            double vat19 = net19 * 0.19;
-
-            double total = net7 + vat7 + net19 + vat19;
-
-            string number = "WC-" + DateTime.Now.ToString("yyyyMMdd-HHmm");
-
-            var doc = new PdfDocument();
-            var page = doc.AddPage();
-            var gfx = XGraphics.FromPdfPage(page);
-
-            var font = new XFont("Arial", 10);
-            var bold = new XFont("Arial", 10, XFontStyle.Bold);
-            var title = new XFont("Arial", 16, XFontStyle.Bold);
-
-            int left = 40;
-            int right = 360;
-
-            // LOGO
-            try
+            var mainLayout = new TableLayoutPanel
             {
-                if (File.Exists("logo.png"))
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 3,
+                Padding = new Padding(12)
+            };
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            var topPanel = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                Padding = new Padding(0, 0, 0, 8)
+            };
+
+            _btnAddPosition.Text = "+";
+            _btnAddPosition.Name = "btnAddPosition";
+            _btnAddPosition.AutoSize = true;
+            _btnAddPosition.Font = new Font(Font.FontFamily, 12, FontStyle.Bold);
+            _btnAddPosition.Click += BtnAddPosition_Click;
+
+            topPanel.Controls.Add(_btnAddPosition);
+
+            _dgvPositions.Name = "dgvPositions";
+            _dgvPositions.Dock = DockStyle.Fill;
+            _dgvPositions.AllowUserToAddRows = false;
+            _dgvPositions.AllowUserToDeleteRows = false;
+            _dgvPositions.AutoGenerateColumns = false;
+            _dgvPositions.RowHeadersVisible = false;
+            _dgvPositions.SelectionMode = DataGridViewSelectionMode.CellSelect;
+            _dgvPositions.MultiSelect = false;
+            _dgvPositions.CellValueChanged += DgvPositions_CellValueChanged;
+            _dgvPositions.CellValidating += DgvPositions_CellValidating;
+            _dgvPositions.CurrentCellDirtyStateChanged += DgvPositions_CurrentCellDirtyStateChanged;
+            _dgvPositions.CellContentClick += DgvPositions_CellContentClick;
+
+            var totalsPanel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                AutoSize = true,
+                Padding = new Padding(0, 10, 0, 0)
+            };
+            totalsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            totalsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+
+            var totalsCaptionPanel = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Right,
+                AutoSize = true,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false
+            };
+            totalsCaptionPanel.Controls.Add(new Label { Text = "Summe Netto:", AutoSize = true });
+            totalsCaptionPanel.Controls.Add(new Label { Text = "Summe Steuer:", AutoSize = true });
+            totalsCaptionPanel.Controls.Add(new Label { Text = "Summe Brutto:", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
+
+            var totalsValuePanel = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Left,
+                AutoSize = true,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false
+            };
+            _lblNet.AutoSize = true;
+            _lblTax.AutoSize = true;
+            _lblGross.AutoSize = true;
+            _lblGross.Font = new Font(Font, FontStyle.Bold);
+
+            totalsValuePanel.Controls.Add(_lblNet);
+            totalsValuePanel.Controls.Add(_lblTax);
+            totalsValuePanel.Controls.Add(_lblGross);
+
+            totalsPanel.Controls.Add(totalsCaptionPanel, 0, 0);
+            totalsPanel.Controls.Add(totalsValuePanel, 1, 0);
+
+            mainLayout.Controls.Add(topPanel, 0, 0);
+            mainLayout.Controls.Add(_dgvPositions, 0, 1);
+            mainLayout.Controls.Add(totalsPanel, 0, 2);
+
+            Controls.Add(mainLayout);
+        }
+
+        private void ConfigureDataGridView()
+        {
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                DataPropertyName = nameof(InvoiceItem.Title),
+                HeaderText = "Titel",
+                FillWeight = 220,
+                AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+            });
+
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                DataPropertyName = nameof(InvoiceItem.Quantity),
+                HeaderText = "Menge",
+                Width = 90,
+                DefaultCellStyle = new DataGridViewCellStyle
                 {
-                    var img = XImage.FromFile("logo.png");
-                    gfx.DrawImage(img, 400, 30, 140, 60);
+                    Format = "N2",
+                    FormatProvider = _culture,
+                    Alignment = DataGridViewContentAlignment.MiddleRight
+                }
+            });
+
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                DataPropertyName = nameof(InvoiceItem.UnitPrice),
+                HeaderText = "EP / Einzelpreis",
+                Width = 130,
+                DefaultCellStyle = new DataGridViewCellStyle
+                {
+                    Format = "C2",
+                    FormatProvider = _culture,
+                    Alignment = DataGridViewContentAlignment.MiddleRight
+                }
+            });
+
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                DataPropertyName = nameof(InvoiceItem.TaxRate),
+                HeaderText = "UST %",
+                Width = 90,
+                DefaultCellStyle = new DataGridViewCellStyle
+                {
+                    Format = "N2",
+                    FormatProvider = _culture,
+                    Alignment = DataGridViewContentAlignment.MiddleRight
+                }
+            });
+
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                DataPropertyName = nameof(InvoiceItem.NetTotal),
+                HeaderText = "Netto",
+                Width = 110,
+                ReadOnly = true,
+                DefaultCellStyle = new DataGridViewCellStyle
+                {
+                    Format = "C2",
+                    FormatProvider = _culture,
+                    Alignment = DataGridViewContentAlignment.MiddleRight,
+                    BackColor = Color.FromArgb(245, 245, 245)
+                }
+            });
+
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                DataPropertyName = nameof(InvoiceItem.TaxAmount),
+                HeaderText = "Steuer",
+                Width = 110,
+                ReadOnly = true,
+                DefaultCellStyle = new DataGridViewCellStyle
+                {
+                    Format = "C2",
+                    FormatProvider = _culture,
+                    Alignment = DataGridViewContentAlignment.MiddleRight,
+                    BackColor = Color.FromArgb(245, 245, 245)
+                }
+            });
+
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                DataPropertyName = nameof(InvoiceItem.GrossTotal),
+                HeaderText = "Brutto",
+                Width = 120,
+                ReadOnly = true,
+                DefaultCellStyle = new DataGridViewCellStyle
+                {
+                    Format = "C2",
+                    FormatProvider = _culture,
+                    Alignment = DataGridViewContentAlignment.MiddleRight,
+                    BackColor = Color.FromArgb(245, 245, 245)
+                }
+            });
+
+            _dgvPositions.Columns.Add(new DataGridViewButtonColumn
+            {
+                HeaderText = string.Empty,
+                Width = 45,
+                Text = "X",
+                UseColumnTextForButtonValue = true,
+                FlatStyle = FlatStyle.Standard
+            });
+        }
+
+        private void BindData()
+        {
+            _dgvPositions.DataSource = _items;
+            _items.ListChanged += (_, _) => UpdateTotals();
+        }
+
+        private void AddDefaultPosition()
+        {
+            _items.Add(new InvoiceItem
+            {
+                Title = string.Empty,
+                Quantity = 1m,
+                UnitPrice = 0m,
+                TaxRate = 19m
+            });
+        }
+
+        private void BtnAddPosition_Click(object? sender, EventArgs e)
+        {
+            _items.Add(new InvoiceItem
+            {
+                Title = string.Empty,
+                Quantity = 1m,
+                UnitPrice = 0m,
+                TaxRate = 19m
+            });
+
+            if (_dgvPositions.Rows.Count > 0)
+            {
+                var newRowIndex = _dgvPositions.Rows.Count - 1;
+                _dgvPositions.CurrentCell = _dgvPositions.Rows[newRowIndex].Cells[0];
+                _dgvPositions.BeginEdit(true);
+            }
+        }
+
+        private void DgvPositions_CurrentCellDirtyStateChanged(object? sender, EventArgs e)
+        {
+            if (_dgvPositions.IsCurrentCellDirty)
+            {
+                _dgvPositions.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            }
+        }
+
+        private void DgvPositions_CellValueChanged(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0)
+            {
+                return;
+            }
+
+            _dgvPositions.Refresh();
+            UpdateTotals();
+        }
+
+        private void DgvPositions_CellContentClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0)
+            {
+                return;
+            }
+
+            if (_dgvPositions.Columns[e.ColumnIndex] is DataGridViewButtonColumn)
+            {
+                _items.RemoveAt(e.RowIndex);
+                UpdateTotals();
+            }
+        }
+
+        private void DgvPositions_CellValidating(object? sender, DataGridViewCellValidatingEventArgs e)
+        {
+            if (!ValidateInput(e.ColumnIndex, Convert.ToString(e.FormattedValue), out var errorMessage))
+            {
+                e.Cancel = true;
+                _dgvPositions.Rows[e.RowIndex].ErrorText = errorMessage;
+                MessageBox.Show(errorMessage, "Ungültiger Wert", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            else
+            {
+                _dgvPositions.Rows[e.RowIndex].ErrorText = string.Empty;
+            }
+        }
+
+        private bool ValidateInput(int columnIndex, string? input, out string errorMessage)
+        {
+            errorMessage = string.Empty;
+
+            if (input is null)
+            {
+                return true;
+            }
+
+            var dataPropertyName = _dgvPositions.Columns[columnIndex].DataPropertyName;
+            if (string.IsNullOrWhiteSpace(dataPropertyName))
+            {
+                return true;
+            }
+
+            if (dataPropertyName == nameof(InvoiceItem.Quantity))
+            {
+                if (!decimal.TryParse(input, NumberStyles.Number, _culture, out var quantity) || quantity <= 0)
+                {
+                    errorMessage = "Menge muss größer als 0 sein.";
+                    return false;
                 }
             }
-            catch { }
 
-            // HEADER LINKS
-            int yL = 40;
-            gfx.DrawString("Waldcampingplatz Ummelbad", bold, XBrushes.Black, left, yL); yL += 15;
-            gfx.DrawString("Inhaberin: Silvana Zampich", font, XBrushes.Black, left, yL); yL += 15;
-            gfx.DrawString("Ummelweg 100", font, XBrushes.Black, left, yL); yL += 15;
-            gfx.DrawString("27412 Hepstedt", font, XBrushes.Black, left, yL); yL += 15;
+            if (dataPropertyName == nameof(InvoiceItem.UnitPrice))
+            {
+                var normalized = input.Replace("€", string.Empty).Trim();
+                if (!decimal.TryParse(normalized, NumberStyles.Currency, _culture, out var unitPrice) || unitPrice < 0)
+                {
+                    errorMessage = "Einzelpreis muss größer oder gleich 0 sein.";
+                    return false;
+                }
+            }
 
-            // HEADER RECHTS
-            int yR = 110;
-            gfx.DrawString("RECHNUNG", title, XBrushes.Black, right, yR); yR += 25;
-            gfx.DrawString("Nr: " + number, font, XBrushes.Black, right, yR); yR += 15;
-            gfx.DrawString("Datum: " + DateTime.Now.ToString("dd.MM.yyyy"), font, XBrushes.Black, right, yR);
+            if (dataPropertyName == nameof(InvoiceItem.TaxRate))
+            {
+                if (!decimal.TryParse(input, NumberStyles.Number, _culture, out var taxRate) || taxRate < 0)
+                {
+                    errorMessage = "UST % muss größer oder gleich 0 sein.";
+                    return false;
+                }
+            }
 
-            // KUNDE
-            int y = 150;
-            gfx.DrawString("Kunde:", bold, XBrushes.Black, left, y); y += 15;
-            gfx.DrawString(txtCustomer.Text, font, XBrushes.Black, left, y);
+            return true;
+        }
 
-            y += 30;
+        private void UpdateTotals()
+        {
+            var totalNet = _items.Sum(i => i.NetTotal);
+            var totalTax = _items.Sum(i => i.TaxAmount);
+            var totalGross = _items.Sum(i => i.GrossTotal);
 
-            // TABELLE
-            int col1 = left;
-            int col2 = left + 40;
-            int col3 = left + 260;
-            int col4 = left + 340;
-            int col5 = left + 440;
-
-            gfx.DrawString("Pos.", bold, XBrushes.Black, col1, y);
-            gfx.DrawString("Leistung", bold, XBrushes.Black, col2, y);
-            gfx.DrawString("Menge", bold, XBrushes.Black, col3, y);
-            gfx.DrawString("EP", bold, XBrushes.Black, col4, y);
-            gfx.DrawString("Gesamt", bold, XBrushes.Black, col5, y);
-
-            y += 10;
-            gfx.DrawLine(XPens.Black, left, y, 560, y);
-            y += 15;
-
-            // POS 1
-            gfx.DrawString("1", font, XBrushes.Black, col1, y);
-            gfx.DrawString("Stellplatz (7%)", font, XBrushes.Black, col2, y);
-            gfx.DrawString(daysStay + " Tage", font, XBrushes.Black, col3, y);
-            gfx.DrawString(priceStay.ToString("F2") + " €", font, XBrushes.Black, col4, y);
-            gfx.DrawString(net7.ToString("F2") + " €", font, XBrushes.Black, col5, y);
-
-            y += 20;
-
-            // POS 2
-            gfx.DrawString("2", font, XBrushes.Black, col1, y);
-            gfx.DrawString("Strom (19%)", font, XBrushes.Black, col2, y);
-            gfx.DrawString(daysPower + " Tage", font, XBrushes.Black, col3, y);
-            gfx.DrawString(pricePower.ToString("F2") + " €", font, XBrushes.Black, col4, y);
-            gfx.DrawString(net19_power.ToString("F2") + " €", font, XBrushes.Black, col5, y);
-
-            y += 20;
-
-            // POS 3
-            gfx.DrawString("3", font, XBrushes.Black, col1, y);
-            gfx.DrawString("Müll (19%)", font, XBrushes.Black, col2, y);
-            gfx.DrawString(daysWaste + " Tage", font, XBrushes.Black, col3, y);
-            gfx.DrawString(priceWaste.ToString("F2") + " €", font, XBrushes.Black, col4, y);
-            gfx.DrawString(net19_waste.ToString("F2") + " €", font, XBrushes.Black, col5, y);
-
-            y += 30;
-
-            // SUMMEN
-            gfx.DrawString("Netto 7%: " + net7.ToString("F2") + " €", font, XBrushes.Black, right, y); y += 15;
-            gfx.DrawString("MwSt 7%: " + vat7.ToString("F2") + " €", font, XBrushes.Black, right, y); y += 15;
-            gfx.DrawString("Netto 19%: " + net19.ToString("F2") + " €", font, XBrushes.Black, right, y); y += 15;
-            gfx.DrawString("MwSt 19%: " + vat19.ToString("F2") + " €", font, XBrushes.Black, right, y); y += 15;
-
-            gfx.DrawString("Gesamt: " + total.ToString("F2") + " €", bold, XBrushes.Black, right, y);
-
-            doc.Save("Rechnung_FINAL.pdf");
+            _lblNet.Text = totalNet.ToString("C2", _culture);
+            _lblTax.Text = totalTax.ToString("C2", _culture);
+            _lblGross.Text = totalGross.ToString("C2", _culture);
         }
     }
 }
