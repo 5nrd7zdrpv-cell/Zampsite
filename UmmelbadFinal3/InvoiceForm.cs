@@ -74,15 +74,37 @@ namespace UmmelbadFinal3
 
         private Control CreateCustomerPanel()
         {
-            var panel = new GroupBox { Text = "Kundendaten", Dock = DockStyle.Fill, Height = 140 };
-            var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
-            for (int i = 0; i < 4; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+            var panel = new GroupBox { Text = "Kundendaten", Dock = DockStyle.Fill, AutoSize = true };
+            var grid = new TableLayoutPanel
+            {
+                ColumnCount = 4,
+                RowCount = 3,
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                Padding = new Padding(4)
+            };
 
-            AddLabeledField(grid, "Name", _txtCustomerName, 0, 0);
-            AddLabeledField(grid, "Adresse", _txtCustomerAddress, 1, 0);
-            AddLabeledField(grid, "PLZ/Ort", _txtCustomerCity, 2, 0);
-            AddLabeledField(grid, "E-Mail", _txtCustomerEmail, 0, 1);
-            AddLabeledField(grid, "Telefon", _txtCustomerPhone, 1, 1);
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+
+            for (int i = 0; i < 3; i++)
+            {
+                grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            }
+
+            ConfigureCustomerTextBox(_txtCustomerName);
+            ConfigureCustomerTextBox(_txtCustomerAddress);
+            ConfigureCustomerTextBox(_txtCustomerCity);
+            ConfigureCustomerTextBox(_txtCustomerEmail);
+            ConfigureCustomerTextBox(_txtCustomerPhone);
+
+            AddCustomerField(grid, "Name", _txtCustomerName, 0, 0);
+            AddCustomerField(grid, "Adresse", _txtCustomerAddress, 2, 0);
+            AddCustomerField(grid, "PLZ/Ort", _txtCustomerCity, 0, 1);
+            AddCustomerField(grid, "E-Mail", _txtCustomerEmail, 2, 1);
+            AddCustomerField(grid, "Telefon", _txtCustomerPhone, 0, 2);
 
             panel.Controls.Add(grid);
             return panel;
@@ -142,6 +164,29 @@ namespace UmmelbadFinal3
             panel.Controls.Add(new Label { Text = "Summen (Netto / Steuer / Brutto)", AutoSize = true, Dock = DockStyle.Left }, 0, 0);
             panel.Controls.Add(values, 1, 0);
             return panel;
+        }
+
+        private static void AddCustomerField(TableLayoutPanel grid, string text, TextBox textBox, int labelColumn, int row)
+        {
+            var label = new Label
+            {
+                Text = text,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Margin = new Padding(4)
+            };
+
+            textBox.Dock = DockStyle.Fill;
+            textBox.Margin = new Padding(4);
+
+            grid.Controls.Add(label, labelColumn, row);
+            grid.Controls.Add(textBox, labelColumn + 1, row);
+        }
+
+        private static void ConfigureCustomerTextBox(TextBox textBox)
+        {
+            textBox.Dock = DockStyle.Fill;
+            textBox.Margin = new Padding(4);
         }
 
         private static void AddLabeledField(TableLayoutPanel grid, string text, Control control, int col, int row)
