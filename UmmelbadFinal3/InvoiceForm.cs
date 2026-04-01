@@ -239,13 +239,13 @@ namespace UmmelbadFinal3
                 }
             };
 
-            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(InvoiceItem.Title), HeaderText = "Titel", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
-            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(InvoiceItem.Quantity), HeaderText = "Menge", Width = 90 });
-            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(InvoiceItem.UnitPrice), HeaderText = "EP", Width = 90 });
-            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(InvoiceItem.TaxRate), HeaderText = "UST %", Width = 80 });
-            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(InvoiceItem.NetTotal), HeaderText = "Netto", Width = 100, ReadOnly = true });
-            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(InvoiceItem.TaxAmount), HeaderText = "Steuer", Width = 100, ReadOnly = true });
-            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(InvoiceItem.GrossTotal), HeaderText = "Brutto", Width = 100, ReadOnly = true });
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { Name = nameof(InvoiceItem.Title), DataPropertyName = nameof(InvoiceItem.Title), HeaderText = "Titel", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { Name = nameof(InvoiceItem.Quantity), DataPropertyName = nameof(InvoiceItem.Quantity), HeaderText = "Menge", Width = 90 });
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { Name = nameof(InvoiceItem.UnitPrice), DataPropertyName = nameof(InvoiceItem.UnitPrice), HeaderText = "EP", Width = 90 });
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { Name = nameof(InvoiceItem.TaxRate), DataPropertyName = nameof(InvoiceItem.TaxRate), HeaderText = "UST %", Width = 80 });
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { Name = nameof(InvoiceItem.NetTotal), DataPropertyName = nameof(InvoiceItem.NetTotal), HeaderText = "Netto", Width = 100, ReadOnly = true });
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { Name = nameof(InvoiceItem.TaxAmount), DataPropertyName = nameof(InvoiceItem.TaxAmount), HeaderText = "Steuer", Width = 100, ReadOnly = true });
+            _dgvPositions.Columns.Add(new DataGridViewTextBoxColumn { Name = nameof(InvoiceItem.GrossTotal), DataPropertyName = nameof(InvoiceItem.GrossTotal), HeaderText = "Brutto", Width = 100, ReadOnly = true });
         }
 
         private void DgvPositions_CellValueChanged(object? sender, DataGridViewCellEventArgs e)
