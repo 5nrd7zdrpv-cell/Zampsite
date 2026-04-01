@@ -163,7 +163,7 @@ namespace UmmelbadFinal3
             _kunden = _customerService.LoadCustomers();
 
             _cmbStellplatz.DataSource = _stellplaetze;
-            _cmbStellplatz.DisplayMember = nameof(Stellplatz.NummerOderName);
+            _cmbStellplatz.DisplayMember = nameof(Stellplatz.Nummer);
             _cmbKunde.DataSource = _kunden;
             _cmbKunde.DisplayMember = nameof(Customer.Name);
 
@@ -179,7 +179,7 @@ namespace UmmelbadFinal3
             {
                 var btn = new Button
                 {
-                    Text = $"{s.NummerOderName}\n{s.Status}",
+                    Text = $"{s.Nummer}\n{s.Status}",
                     Width = 130,
                     Height = 70,
                     BackColor = ToColor(s.Status),
@@ -224,17 +224,15 @@ namespace UmmelbadFinal3
             {
                 Id = _buchungen.Count == 0 ? 1 : _buchungen.Max(x => x.Id) + 1,
                 KundenId = kunde.Id,
-                StellplatzId = stellplatz.Id,
+                StellplatzIds = new List<int> { stellplatz.Id },
                 Startdatum = _dtStart.Value.Date,
                 Enddatum = _dtEnd.Value.Date,
-                IstDauercamper = _chkDauer.Checked,
-                Jahrespreis = _chkDauer.Checked ? _numJahrespreis.Value : null,
                 Gesamtpreis = _chkDauer.Checked ? _numJahrespreis.Value : _campingService.BerechneBuchungspreis(_dtStart.Value, _dtEnd.Value, _numNachtpreis.Value)
             };
 
             _buchungen.Add(buchung);
-            stellplatz.Status = buchung.IstDauercamper ? StellplatzStatus.Dauercamper : StellplatzStatus.Belegt;
-            stellplatz.AktuelleKundenId = kunde.Id;
+            stellplatz.Status = _chkDauer.Checked ? StellplatzStatus.Dauercamper : StellplatzStatus.Belegt;
+            stellplatz.AktiveBuchungId = buchung.Id;
             _campingService.SaveBuchungen(_buchungen);
             _campingService.SaveStellplaetze(_stellplaetze);
             RenderStellplaetze();
