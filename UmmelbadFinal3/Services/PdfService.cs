@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -22,110 +23,157 @@ namespace UmmelbadFinal3.Services
         public string Export(Invoice invoice)
         {
             var outputPath = Path.Combine(_baseDirectory, $"Rechnung_{invoice.InvoiceNumber}.pdf");
-            var logoPath = Path.Combine(_baseDirectory, "Logo.png");
-            byte[]? logoBytes = File.Exists(logoPath) ? File.ReadAllBytes(logoPath) : null;
 
             Document.Create(container =>
             {
                 container.Page(page =>
                 {
-                    page.Margin(24);
+                    page.Margin(40);
                     page.Size(PageSizes.A4);
                     page.DefaultTextStyle(x => x.FontSize(10));
 
-                    page.Header().Element(e => ComposeHeader(e, invoice, logoBytes));
                     page.Content().Element(e => ComposeContent(e, invoice));
-                    page.Footer().AlignCenter().Text("Vielen Dank für Ihren Auftrag.").FontSize(9).FontColor(Colors.Grey.Darken1);
                 });
             }).GeneratePdf(outputPath);
 
             return outputPath;
         }
 
-        private void ComposeHeader(IContainer container, Invoice invoice, byte[]? logoBytes)
-        {
-            container.Row(row =>
-            {
-                row.RelativeItem().Column(col =>
-                {
-                    col.Item().Text("Ihre Firma GmbH").SemiBold().FontSize(14);
-                    col.Item().Text($"Rechnung: {invoice.InvoiceNumber}");
-                    col.Item().Text($"Rechnungsdatum: {invoice.InvoiceDate:dd.MM.yyyy}");
-                    if (invoice.ServiceDate.HasValue)
-                    {
-                        col.Item().Text($"Leistungsdatum: {invoice.ServiceDate.Value:dd.MM.yyyy}");
-                    }
-                });
-
-                row.ConstantItem(140).Height(70).AlignRight().AlignMiddle().Element(c =>
-                {
-                    if (logoBytes != null)
-                    {
-                        c.Image(logoBytes, ImageScaling.FitArea);
-                    }
-                });
-            });
-        }
-
         private void ComposeContent(IContainer container, Invoice invoice)
         {
+            var servicePeriodStart = invoice.ServiceDate ?? invoice.InvoiceDate;
+            var servicePeriodEnd = invoice.ServiceDate ?? invoice.InvoiceDate;
+            var taxGroups = invoice.Items
+                .GroupBy(i => i.TaxRate)
+                .OrderBy(g => g.Key)
+                .Select(g => new TaxGroup(
+                    g.Key,
+                    g.Sum(item => item.NetTotal),
+                    g.Sum(item => item.TaxAmount)))
+                .ToList();
+
             container.Column(col =>
             {
                 col.Spacing(12);
-                col.Item().Border(1).Padding(8).Column(c =>
+
+                col.Item().Row(row =>
                 {
-                    c.Item().Text("Kundendaten").SemiBold();
+                    row.RelativeItem().Column(left =>
+                    {
+                        left.Spacing(2);
+                        left.Item().Text("Ihre Firma GmbH").SemiBold();
+                        left.Item().Text("Musterstraße 1");
+                        left.Item().Text("12345 Musterstadt");
+                        left.Item().Text("Telefon: +49 123 456789");
+                        left.Item().Text("E-Mail: info@ihrefirma.de");
+                    });
+
+                    row.ConstantItem(190).Height(70).AlignRight().AlignTop().Element(c =>
+                    {
+                        var logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logo.png");
+                        if (File.Exists(logoPath))
+                        {
+                            c.Image(File.ReadAllBytes(logoPath), ImageScaling.FitWidth);
+                        }
+                    });
+                });
+
+                col.Item().Text("RECHNUNG").Bold().FontSize(20);
+
+                col.Item().Row(row =>
+                {
+                    row.RelativeItem();
+                    row.ConstantItem(260).Column(right =>
+                    {
+                        right.Spacing(2);
+                        right.Item().Text($"Rechnungsnummer: {invoice.InvoiceNumber}");
+                        right.Item().Text($"Rechnungsdatum: {invoice.InvoiceDate:dd.MM.yyyy}");
+                        right.Item().Text($"Leistungszeitraum: {servicePeriodStart:dd.MM.yyyy} – {servicePeriodEnd:dd.MM.yyyy}");
+                    });
+                });
+
+                col.Item().Column(c =>
+                {
+                    c.Spacing(2);
+                    c.Item().Text("Leistungsempfänger:").SemiBold();
                     c.Item().Text(invoice.CustomerName);
                     c.Item().Text(invoice.CustomerAddress);
                     c.Item().Text(invoice.CustomerCity);
-                    if (!string.IsNullOrWhiteSpace(invoice.CustomerEmail)) c.Item().Text($"E-Mail: {invoice.CustomerEmail}");
-                    if (!string.IsNullOrWhiteSpace(invoice.CustomerPhone)) c.Item().Text($"Telefon: {invoice.CustomerPhone}");
                 });
 
                 col.Item().Table(table =>
                 {
                     table.ColumnsDefinition(columns =>
                     {
+                        columns.ConstantColumn(35);
                         columns.RelativeColumn(3);
-                        columns.RelativeColumn();
-                        columns.RelativeColumn();
-                        columns.RelativeColumn();
-                        columns.RelativeColumn();
-                        columns.RelativeColumn();
+                        columns.RelativeColumn(1.1f);
+                        columns.RelativeColumn(1.2f);
+                        columns.RelativeColumn(1.4f);
                     });
+
+                    static IContainer HeaderCell(IContainer x) =>
+                        x.BorderBottom(1).BorderColor(Colors.Grey.Lighten1).PaddingVertical(4).PaddingHorizontal(2);
+                    static IContainer BodyCell(IContainer x) =>
+                        x.BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten2).PaddingVertical(4).PaddingHorizontal(2);
 
                     table.Header(header =>
                     {
-                        header.Cell().Text("Titel").SemiBold();
-                        header.Cell().AlignRight().Text("Menge").SemiBold();
-                        header.Cell().AlignRight().Text("EP").SemiBold();
-                        header.Cell().AlignRight().Text("UST %").SemiBold();
-                        header.Cell().AlignRight().Text("Netto").SemiBold();
-                        header.Cell().AlignRight().Text("Brutto").SemiBold();
+                        header.Cell().Element(HeaderCell).Text("Pos.").SemiBold();
+                        header.Cell().Element(HeaderCell).Text("Leistung").SemiBold();
+                        header.Cell().Element(HeaderCell).AlignRight().Text("Menge").SemiBold();
+                        header.Cell().Element(HeaderCell).AlignRight().Text("EP netto").SemiBold();
+                        header.Cell().Element(HeaderCell).AlignRight().Text("Gesamt netto").SemiBold();
                     });
 
-                    foreach (var item in invoice.Items)
+                    for (var index = 0; index < invoice.Items.Count; index++)
                     {
-                        table.Cell().Text(item.Title);
-                        table.Cell().AlignRight().Text(item.Quantity.ToString("N2", _culture));
-                        table.Cell().AlignRight().Text(item.UnitPrice.ToString("C2", _culture));
-                        table.Cell().AlignRight().Text(item.TaxRate.ToString("N2", _culture));
-                        table.Cell().AlignRight().Text(item.NetTotal.ToString("C2", _culture));
-                        table.Cell().AlignRight().Text(item.GrossTotal.ToString("C2", _culture));
+                        var item = invoice.Items[index];
+                        table.Cell().Element(BodyCell).Text((index + 1).ToString(_culture));
+                        table.Cell().Element(BodyCell).Text($"{item.Title} ({item.TaxRate:0.##}%)");
+                        table.Cell().Element(BodyCell).AlignRight().Text(FormatQuantity(item.Quantity));
+                        table.Cell().Element(BodyCell).AlignRight().Text(item.UnitPrice.ToString("C2", _culture));
+                        table.Cell().Element(BodyCell).AlignRight().Text(item.NetTotal.ToString("C2", _culture));
                     }
                 });
 
-                col.Item().AlignRight().Width(220).Table(t =>
+                col.Item().AlignRight().Width(260).Column(taxCol =>
                 {
-                    t.ColumnsDefinition(c => { c.RelativeColumn(); c.RelativeColumn(); });
-                    t.Cell().Text("Netto:");
-                    t.Cell().AlignRight().Text(invoice.TotalNet.ToString("C2", _culture));
-                    t.Cell().Text("Steuer:");
-                    t.Cell().AlignRight().Text(invoice.TotalTax.ToString("C2", _culture));
-                    t.Cell().Text("Brutto:").SemiBold();
-                    t.Cell().AlignRight().Text(invoice.TotalGross.ToString("C2", _culture)).SemiBold();
+                    taxCol.Spacing(2);
+                    foreach (var group in taxGroups)
+                    {
+                        taxCol.Item().Row(r =>
+                        {
+                            r.RelativeItem().Text($"Netto {group.TaxRate:0.##}%:");
+                            r.ConstantItem(100).AlignRight().Text(group.Net.ToString("C2", _culture));
+                        });
+                        taxCol.Item().Row(r =>
+                        {
+                            r.RelativeItem().Text($"MwSt {group.TaxRate:0.##}%:");
+                            r.ConstantItem(100).AlignRight().Text(group.Tax.ToString("C2", _culture));
+                        });
+                        taxCol.Item().PaddingBottom(4);
+                    }
+
+                    taxCol.Item().PaddingTop(4).BorderTop(1).BorderColor(Colors.Grey.Lighten1).Row(r =>
+                    {
+                        r.RelativeItem().Text("Gesamt:").SemiBold();
+                        r.ConstantItem(100).AlignRight().Text(invoice.TotalGross.ToString("C2", _culture)).SemiBold();
+                    });
                 });
+
+                col.Item().PaddingTop(8).Text("Gemäß § 12 Abs. 2 Nr. 11 UStG gelten die ausgewiesenen Steuersätze je Leistungsart.");
+                col.Item().Text("Zahlbar sofort ohne Abzug.");
             });
         }
+
+        private string FormatQuantity(decimal quantity)
+        {
+            var hasFraction = quantity != decimal.Truncate(quantity);
+            var formatted = quantity.ToString(hasFraction ? "N2" : "N0", _culture);
+            return $"{formatted} Tage";
+        }
+
+        private sealed record TaxGroup(decimal TaxRate, decimal Net, decimal Tax);
     }
 }
