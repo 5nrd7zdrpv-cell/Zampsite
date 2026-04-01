@@ -41,6 +41,7 @@ namespace UmmelbadFinal3
         private readonly Label _lblGross = new();
 
         private List<Customer> _customers = new();
+        private bool _suspendAutoSave;
 
         public InvoiceForm()
         {
@@ -54,11 +55,31 @@ namespace UmmelbadFinal3
             InitializeComponent();
             ConfigureDataGridView();
             _dgvPositions.DataSource = _items;
-            _items.ListChanged += (_, _) => UpdateTotals();
+            _items.ListChanged += (_, _) =>
+            {
+                UpdateTotals();
+                AutoSaveDraft();
+            };
 
             LoadCustomers();
             _stellplaetze = _campingService.LoadStellplaetze();
             ResetInvoice();
+            RestoreDraftIfAvailable();
+            WireAutoSaveEvents();
+        }
+
+        private void WireAutoSaveEvents()
+        {
+            _txtCustomerName.TextChanged += (_, _) => AutoSaveDraft();
+            _txtCustomerAddress.TextChanged += (_, _) => AutoSaveDraft();
+            _txtCustomerCity.TextChanged += (_, _) => AutoSaveDraft();
+            _txtCustomerEmail.TextChanged += (_, _) => AutoSaveDraft();
+            _txtCustomerPhone.TextChanged += (_, _) => AutoSaveDraft();
+            _dtpInvoiceDate.ValueChanged += (_, _) => AutoSaveDraft();
+            _dtpServiceDate.ValueChanged += (_, _) => AutoSaveDraft();
+            _dtpServiceDate.CheckedChanged += (_, _) => AutoSaveDraft();
+            _cmbCustomers.TextChanged += (_, _) => AutoSaveDraft();
+            _cmbCustomers.SelectedIndexChanged += (_, _) => AutoSaveDraft();
         }
 
         private void InitializeComponent()
@@ -278,6 +299,7 @@ namespace UmmelbadFinal3
             item.TaxRate = SafeParse(row.Cells[nameof(InvoiceItem.TaxRate)].Value);
 
             UpdateTotals();
+            AutoSaveDraft();
         }
 
         private void DgvPositions_CellEndEdit(object? sender, DataGridViewCellEventArgs e)
@@ -446,6 +468,7 @@ namespace UmmelbadFinal3
 
             _selectedBookingIds.Add(selectedBooking.Id);
             UpdateTotals();
+            AutoSaveDraft();
         }
 
         private void AddMultiPitchBooking()
@@ -477,6 +500,7 @@ namespace UmmelbadFinal3
             });
 
             UpdateTotals();
+            AutoSaveDraft();
         }
 
         private void AddCafeProducts()
@@ -537,6 +561,7 @@ namespace UmmelbadFinal3
 
             _selectedCafeSaleIds.Add(selected.Verkauf.Id);
             UpdateTotals();
+            AutoSaveDraft();
         }
 
         private string ResolvePitchNumbers(IEnumerable<int> pitchIds)
@@ -636,6 +661,7 @@ namespace UmmelbadFinal3
             }
 
             UpdateTotals();
+            AutoSaveDraft();
         }
 
         private void SaveInvoice()
@@ -653,6 +679,7 @@ namespace UmmelbadFinal3
             LoadCustomers();
 
             MessageBox.Show($"Gespeichert: {path}", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            _invoiceService.DeleteDraft();
             ResetInvoice();
         }
 
@@ -670,8 +697,33 @@ namespace UmmelbadFinal3
                 if (invoice != null)
                 {
                     FillUiFromInvoice(invoice);
+                    AutoSaveDraft();
                 }
             }
+        }
+
+        private void RestoreDraftIfAvailable()
+        {
+            var draft = _invoiceService.LoadDraft();
+            if (draft == null)
+            {
+                return;
+            }
+
+            _suspendAutoSave = true;
+            FillUiFromInvoice(draft);
+            _suspendAutoSave = false;
+        }
+
+        private void AutoSaveDraft()
+        {
+            if (_suspendAutoSave)
+            {
+                return;
+            }
+
+            var invoice = BuildInvoiceFromUi();
+            _invoiceService.SaveDraft(invoice);
         }
 
         private void OpenInvoiceList()

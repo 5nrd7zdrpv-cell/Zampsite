@@ -2,17 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
 using UmmelbadFinal3.Models;
 
 namespace UmmelbadFinal3.Services
 {
     public class CustomerService
     {
+        private readonly DataService _dataService;
         private readonly string _customersFilePath;
 
-        public CustomerService(string baseDirectory)
+        public CustomerService(string baseDirectory, DataService? dataService = null)
         {
+            _dataService = dataService ?? new DataService();
             var dataDirectory = Path.Combine(baseDirectory, "Data");
             Directory.CreateDirectory(dataDirectory);
             _customersFilePath = Path.Combine(dataDirectory, "customers.json");
@@ -20,19 +21,12 @@ namespace UmmelbadFinal3.Services
 
         public List<Customer> LoadCustomers()
         {
-            if (!File.Exists(_customersFilePath))
-            {
-                return new List<Customer>();
-            }
-
-            var json = File.ReadAllText(_customersFilePath);
-            return JsonSerializer.Deserialize<List<Customer>>(json) ?? new List<Customer>();
+            return _dataService.Load(_customersFilePath, new List<Customer>());
         }
 
         public void SaveCustomers(List<Customer> customers)
         {
-            var json = JsonSerializer.Serialize(customers, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(_customersFilePath, json);
+            _dataService.Save(_customersFilePath, customers);
         }
 
         public Customer GetOrCreateCustomer(List<Customer> customers, Customer inputCustomer)

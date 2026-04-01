@@ -2,21 +2,21 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
 using UmmelbadFinal3.Models;
 
 namespace UmmelbadFinal3.Services
 {
     public class CampingService
     {
+        private readonly DataService _dataService;
         private readonly string _dataDir;
         private readonly string _stellplaetzeFile;
         private readonly string _buchungenFile;
         private readonly string _cafeFile;
-        private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
-        public CampingService(string baseDirectory)
+        public CampingService(string baseDirectory, DataService? dataService = null)
         {
+            _dataService = dataService ?? new DataService();
             _dataDir = Path.Combine(baseDirectory, "CampingData");
             Directory.CreateDirectory(_dataDir);
             _stellplaetzeFile = Path.Combine(_dataDir, "stellplaetze.json");
@@ -125,15 +125,12 @@ namespace UmmelbadFinal3.Services
 
         private T? Load<T>(string path)
         {
-            if (!File.Exists(path)) return default;
-            var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<T>(json);
+            return _dataService.Load<T?>(path, default);
         }
 
         private void Save<T>(string path, T data)
         {
-            var json = JsonSerializer.Serialize(data, _jsonOptions);
-            File.WriteAllText(path, json);
+            _dataService.Save(path, data);
         }
     }
 }
