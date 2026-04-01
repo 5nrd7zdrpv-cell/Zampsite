@@ -19,6 +19,10 @@ namespace UmmelbadFinal3
         private readonly InvoiceNumberService _invoiceNumberService;
         private readonly PdfService _pdfService;
         private readonly CustomerService _customerService;
+        private readonly CampingService _campingService;
+        private List<Stellplatz> _stellplaetze = new();
+        private readonly HashSet<int> _selectedBookingIds = new();
+        private readonly HashSet<int> _selectedCafeSaleIds = new();
 
         private readonly ComboBox _cmbCustomers = new();
         private readonly TextBox _txtCustomerName = new();
@@ -45,6 +49,7 @@ namespace UmmelbadFinal3
             _invoiceNumberService = new InvoiceNumberService(baseDir);
             _pdfService = new PdfService(baseDir);
             _customerService = new CustomerService(baseDir);
+            _campingService = new CampingService(baseDir);
 
             InitializeComponent();
             ConfigureDataGridView();
@@ -52,6 +57,7 @@ namespace UmmelbadFinal3
             _items.ListChanged += (_, _) => UpdateTotals();
 
             LoadCustomers();
+            _stellplaetze = _campingService.LoadStellplaetze();
             ResetInvoice();
         }
 
@@ -152,6 +158,9 @@ namespace UmmelbadFinal3
             var btnLoad = new Button { Text = "Rechnung laden", AutoSize = true };
             var btnPdf = new Button { Text = "PDF erstellen", AutoSize = true };
             var btnList = new Button { Text = "Rechnungsübersicht", AutoSize = true };
+            var btnAddBooking = new Button { Text = "Stellplatz-Buchung hinzufügen", AutoSize = true };
+            var btnAddMultiPitch = new Button { Text = "Mehrere Stellplätze hinzufügen", AutoSize = true };
+            var btnAddCafe = new Button { Text = "Café-Produkte hinzufügen", AutoSize = true };
 
             btnAdd.Click += (_, _) => AddPosition();
             btnDelete.Click += (_, _) => DeleteSelectedPosition();
@@ -159,8 +168,11 @@ namespace UmmelbadFinal3
             btnLoad.Click += (_, _) => LoadInvoice();
             btnPdf.Click += (_, _) => ExportPdf();
             btnList.Click += (_, _) => OpenInvoiceList();
+            btnAddBooking.Click += (_, _) => AddCampingBooking();
+            btnAddMultiPitch.Click += (_, _) => AddMultiPitchBooking();
+            btnAddCafe.Click += (_, _) => AddCafeProducts();
 
-            panel.Controls.AddRange(new Control[] { btnAdd, btnDelete, btnSave, btnLoad, btnPdf, btnList });
+            panel.Controls.AddRange(new Control[] { btnAdd, btnDelete, btnAddBooking, btnAddMultiPitch, btnAddCafe, btnSave, btnLoad, btnPdf, btnList });
             return panel;
         }
 
@@ -338,6 +350,8 @@ namespace UmmelbadFinal3
             _cmbCustomers.Text = string.Empty;
             ClearCustomerFields();
             _items.Clear();
+            _selectedBookingIds.Clear();
+            _selectedCafeSaleIds.Clear();
             AddPosition();
             UpdateTotals();
         }
@@ -372,6 +386,169 @@ namespace UmmelbadFinal3
             _txtCustomerCity.Text = string.Empty;
             _txtCustomerEmail.Text = string.Empty;
             _txtCustomerPhone.Text = string.Empty;
+        }
+
+        private void AddCampingBooking()
+        {
+            var offeneBuchungen = _campingService.LoadOffeneBuchungen()
+                .Where(x => !_selectedBookingIds.Contains(x.Id))
+                .OrderBy(x => x.Startdatum)
+                .ToList();
+
+            if (offeneBuchungen.Count == 0)
+            {
+                MessageBox.Show("Keine offenen Stellplatz-Buchungen gefunden.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using var picker = new Form
+            {
+                Text = "Stellplatz-Buchung auswählen",
+                Width = 820,
+                Height = 420,
+                StartPosition = FormStartPosition.CenterParent
+            };
+
+            var list = new ListBox { Dock = DockStyle.Fill };
+            foreach (var buchung in offeneBuchungen)
+            {
+                var stellplatzNamen = ResolvePitchNumbers(buchung.StellplatzIds);
+                list.Items.Add(new BookingPickerEntry(buchung, $"#{buchung.Id} | {buchung.Startdatum:dd.MM.yyyy} - {buchung.Enddatum:dd.MM.yyyy} | {stellplatzNamen} | {buchung.Gesamtpreis.ToString("C2", _culture)}"));
+            }
+            list.DisplayMember = nameof(BookingPickerEntry.DisplayText);
+
+            var buttonPanel = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 52, FlowDirection = FlowDirection.RightToLeft };
+            var btnOk = new Button { Text = "Übernehmen", AutoSize = true };
+            var btnCancel = new Button { Text = "Abbrechen", AutoSize = true };
+            buttonPanel.Controls.Add(btnOk);
+            buttonPanel.Controls.Add(btnCancel);
+
+            btnOk.Click += (_, _) => picker.DialogResult = DialogResult.OK;
+            btnCancel.Click += (_, _) => picker.DialogResult = DialogResult.Cancel;
+
+            picker.Controls.Add(list);
+            picker.Controls.Add(buttonPanel);
+
+            if (picker.ShowDialog(this) != DialogResult.OK || list.SelectedItem is not BookingPickerEntry selected)
+            {
+                return;
+            }
+
+            var selectedBooking = selected.Buchung;
+            var pitchNumbers = ResolvePitchNumbers(selectedBooking.StellplatzIds);
+            _items.Add(new InvoiceItem
+            {
+                Title = $"Stellplatz-Buchung {pitchNumbers} ({selectedBooking.Startdatum:dd.MM.yyyy}-{selectedBooking.Enddatum:dd.MM.yyyy})",
+                Quantity = 1,
+                UnitPrice = selectedBooking.Gesamtpreis,
+                TaxRate = 7m
+            });
+
+            _selectedBookingIds.Add(selectedBooking.Id);
+            UpdateTotals();
+        }
+
+        private void AddMultiPitchBooking()
+        {
+            if (_stellplaetze.Count == 0)
+            {
+                _stellplaetze = _campingService.LoadStellplaetze();
+            }
+
+            using var dialog = new MultiPitchDialog(_stellplaetze);
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            if (dialog.SelectedPitchIds.Count == 0)
+            {
+                ShowValidation("Bitte mindestens einen Stellplatz auswählen.");
+                return;
+            }
+
+            var pitchNumbers = ResolvePitchNumbers(dialog.SelectedPitchIds);
+            _items.Add(new InvoiceItem
+            {
+                Title = $"Stellplätze {pitchNumbers} ({dialog.StartDate:dd.MM.yyyy}-{dialog.EndDate:dd.MM.yyyy})",
+                Quantity = 1,
+                UnitPrice = dialog.TotalPrice,
+                TaxRate = dialog.TaxRate
+            });
+
+            UpdateTotals();
+        }
+
+        private void AddCafeProducts()
+        {
+            var offeneVerkaeufe = _campingService.LoadOffeneCafeVerkaeufe()
+                .Where(x => !_selectedCafeSaleIds.Contains(x.Id))
+                .OrderBy(x => x.Zeitpunkt)
+                .ToList();
+
+            if (offeneVerkaeufe.Count == 0)
+            {
+                MessageBox.Show("Keine offenen Café-Verkäufe gefunden.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using var picker = new Form
+            {
+                Text = "Café-Verkauf auswählen",
+                Width = 820,
+                Height = 420,
+                StartPosition = FormStartPosition.CenterParent
+            };
+
+            var list = new ListBox { Dock = DockStyle.Fill };
+            foreach (var verkauf in offeneVerkaeufe)
+            {
+                list.Items.Add(new CafePickerEntry(verkauf, $"#{verkauf.Id} | {verkauf.Zeitpunkt:dd.MM.yyyy HH:mm} | {verkauf.Gesamt.ToString("C2", _culture)}"));
+            }
+            list.DisplayMember = nameof(CafePickerEntry.DisplayText);
+
+            var buttonPanel = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 52, FlowDirection = FlowDirection.RightToLeft };
+            var btnOk = new Button { Text = "Übernehmen", AutoSize = true };
+            var btnCancel = new Button { Text = "Abbrechen", AutoSize = true };
+            buttonPanel.Controls.Add(btnOk);
+            buttonPanel.Controls.Add(btnCancel);
+
+            btnOk.Click += (_, _) => picker.DialogResult = DialogResult.OK;
+            btnCancel.Click += (_, _) => picker.DialogResult = DialogResult.Cancel;
+
+            picker.Controls.Add(list);
+            picker.Controls.Add(buttonPanel);
+
+            if (picker.ShowDialog(this) != DialogResult.OK || list.SelectedItem is not CafePickerEntry selected)
+            {
+                return;
+            }
+
+            foreach (var position in selected.Verkauf.Positionen)
+            {
+                _items.Add(new InvoiceItem
+                {
+                    Title = $"Café: {position.Name} (Verkauf #{selected.Verkauf.Id})",
+                    Quantity = position.Menge,
+                    UnitPrice = position.Preis,
+                    TaxRate = 19m
+                });
+            }
+
+            _selectedCafeSaleIds.Add(selected.Verkauf.Id);
+            UpdateTotals();
+        }
+
+        private string ResolvePitchNumbers(IEnumerable<int> pitchIds)
+        {
+            var idSet = pitchIds.ToHashSet();
+            var numbers = _stellplaetze
+                .Where(x => idSet.Contains(x.Id))
+                .Select(x => x.Nummer)
+                .OrderBy(x => x)
+                .ToList();
+
+            return numbers.Count == 0 ? "Unbekannt" : string.Join(", ", numbers);
         }
 
         private bool ValidateInvoice()
@@ -419,7 +596,9 @@ namespace UmmelbadFinal3
                 ServiceDate = _dtpServiceDate.Checked ? _dtpServiceDate.Value.Date : null,
                 Customer = customer,
                 CustomerNameSnapshot = customer.Name,
-                Items = _items.ToList()
+                Items = _items.ToList(),
+                IncludedBookingIds = _selectedBookingIds.ToList(),
+                IncludedCafeSaleIds = _selectedCafeSaleIds.ToList()
             };
         }
 
@@ -445,6 +624,16 @@ namespace UmmelbadFinal3
             {
                 _items.Add(item);
             }
+            _selectedBookingIds.Clear();
+            foreach (var bookingId in invoice.IncludedBookingIds)
+            {
+                _selectedBookingIds.Add(bookingId);
+            }
+            _selectedCafeSaleIds.Clear();
+            foreach (var saleId in invoice.IncludedCafeSaleIds)
+            {
+                _selectedCafeSaleIds.Add(saleId);
+            }
 
             UpdateTotals();
         }
@@ -459,6 +648,8 @@ namespace UmmelbadFinal3
             invoice.CustomerNameSnapshot = customer.Name;
 
             var path = _invoiceService.Save(invoice);
+            _campingService.MarkiereBuchungenAlsAbgerechnet(invoice.IncludedBookingIds, invoice.InvoiceNumber);
+            _campingService.MarkiereCafeVerkaeufeAlsAbgerechnet(invoice.IncludedCafeSaleIds, invoice.InvoiceNumber);
             LoadCustomers();
 
             MessageBox.Show($"Gespeichert: {path}", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -502,6 +693,104 @@ namespace UmmelbadFinal3
             _lblTax.Text = $"Steuer: {_items.Sum(x => x.TaxAmount).ToString("C2", _culture)}";
             _lblGross.Text = $"Brutto: {_items.Sum(x => x.GrossTotal).ToString("C2", _culture)}";
             _dgvPositions.Refresh();
+        }
+
+        private sealed class BookingPickerEntry
+        {
+            public BookingPickerEntry(Buchung buchung, string displayText)
+            {
+                Buchung = buchung;
+                DisplayText = displayText;
+            }
+
+            public Buchung Buchung { get; }
+            public string DisplayText { get; }
+        }
+
+        private sealed class CafePickerEntry
+        {
+            public CafePickerEntry(CafeVerkauf verkauf, string displayText)
+            {
+                Verkauf = verkauf;
+                DisplayText = displayText;
+            }
+
+            public CafeVerkauf Verkauf { get; }
+            public string DisplayText { get; }
+        }
+
+        private sealed class MultiPitchDialog : Form
+        {
+            private readonly CheckedListBox _lstPitches = new() { Dock = DockStyle.Fill, CheckOnClick = true };
+            private readonly DateTimePicker _dtStart = new() { Format = DateTimePickerFormat.Short };
+            private readonly DateTimePicker _dtEnd = new() { Format = DateTimePickerFormat.Short };
+            private readonly NumericUpDown _numTotalPrice = new() { DecimalPlaces = 2, Maximum = 1000000, Minimum = 0, Value = 25 };
+            private readonly NumericUpDown _numTaxRate = new() { DecimalPlaces = 2, Maximum = 100, Minimum = 0, Value = 7 };
+
+            public MultiPitchDialog(IEnumerable<Stellplatz> stellplaetze)
+            {
+                Text = "Mehrere Stellplätze abrechnen";
+                Width = 600;
+                Height = 500;
+                StartPosition = FormStartPosition.CenterParent;
+
+                var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(12) };
+                root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+                foreach (var platz in stellplaetze.OrderBy(x => x.Nummer))
+                {
+                    _lstPitches.Items.Add(new PitchEntry(platz), false);
+                }
+                _lstPitches.DisplayMember = nameof(PitchEntry.DisplayText);
+
+                var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, AutoSize = true };
+                grid.Controls.Add(new Label { Text = "Startdatum", AutoSize = true }, 0, 0);
+                grid.Controls.Add(_dtStart, 1, 0);
+                grid.Controls.Add(new Label { Text = "Enddatum", AutoSize = true }, 0, 1);
+                grid.Controls.Add(_dtEnd, 1, 1);
+                grid.Controls.Add(new Label { Text = "Gesamtpreis netto", AutoSize = true }, 0, 2);
+                grid.Controls.Add(_numTotalPrice, 1, 2);
+                grid.Controls.Add(new Label { Text = "Steuersatz %", AutoSize = true }, 0, 3);
+                grid.Controls.Add(_numTaxRate, 1, 3);
+
+                var buttonPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, AutoSize = true };
+                var btnOk = new Button { Text = "Übernehmen", AutoSize = true };
+                var btnCancel = new Button { Text = "Abbrechen", AutoSize = true };
+                btnOk.Click += (_, _) => DialogResult = DialogResult.OK;
+                btnCancel.Click += (_, _) => DialogResult = DialogResult.Cancel;
+                buttonPanel.Controls.Add(btnOk);
+                buttonPanel.Controls.Add(btnCancel);
+
+                root.Controls.Add(_lstPitches, 0, 0);
+                root.Controls.Add(grid, 0, 1);
+                root.Controls.Add(buttonPanel, 0, 2);
+
+                Controls.Add(root);
+            }
+
+            public List<int> SelectedPitchIds => _lstPitches.CheckedItems
+                .Cast<PitchEntry>()
+                .Select(x => x.Stellplatz.Id)
+                .ToList();
+
+            public DateTime StartDate => _dtStart.Value.Date;
+            public DateTime EndDate => _dtEnd.Value.Date;
+            public decimal TotalPrice => _numTotalPrice.Value;
+            public decimal TaxRate => _numTaxRate.Value;
+
+            private sealed class PitchEntry
+            {
+                public PitchEntry(Stellplatz stellplatz)
+                {
+                    Stellplatz = stellplatz;
+                    DisplayText = $"{stellplatz.Nummer} ({stellplatz.Status})";
+                }
+
+                public Stellplatz Stellplatz { get; }
+                public string DisplayText { get; }
+            }
         }
     }
 }

@@ -29,10 +29,46 @@ namespace UmmelbadFinal3.Services
         public List<Stellplatz> LoadStellplaetze() => Load<List<Stellplatz>>(_stellplaetzeFile) ?? new List<Stellplatz>();
         public List<Buchung> LoadBuchungen() => Load<List<Buchung>>(_buchungenFile) ?? new List<Buchung>();
         public List<CafeVerkauf> LoadCafeVerkaeufe() => Load<List<CafeVerkauf>>(_cafeFile) ?? new List<CafeVerkauf>();
+        public List<Buchung> LoadOffeneBuchungen() => LoadBuchungen().Where(x => string.IsNullOrWhiteSpace(x.InvoiceNumber)).ToList();
+        public List<CafeVerkauf> LoadOffeneCafeVerkaeufe() => LoadCafeVerkaeufe().Where(x => string.IsNullOrWhiteSpace(x.InvoiceNumber)).ToList();
 
         public void SaveStellplaetze(List<Stellplatz> items) => Save(_stellplaetzeFile, items);
         public void SaveBuchungen(List<Buchung> items) => Save(_buchungenFile, items);
         public void SaveCafeVerkaeufe(List<CafeVerkauf> items) => Save(_cafeFile, items);
+
+        public void MarkiereBuchungenAlsAbgerechnet(IEnumerable<int> buchungIds, string invoiceNumber)
+        {
+            var idSet = buchungIds.ToHashSet();
+            if (idSet.Count == 0)
+            {
+                return;
+            }
+
+            var buchungen = LoadBuchungen();
+            foreach (var buchung in buchungen.Where(x => idSet.Contains(x.Id)))
+            {
+                buchung.InvoiceNumber = invoiceNumber;
+            }
+
+            SaveBuchungen(buchungen);
+        }
+
+        public void MarkiereCafeVerkaeufeAlsAbgerechnet(IEnumerable<int> verkaufIds, string invoiceNumber)
+        {
+            var idSet = verkaufIds.ToHashSet();
+            if (idSet.Count == 0)
+            {
+                return;
+            }
+
+            var verkaeufe = LoadCafeVerkaeufe();
+            foreach (var verkauf in verkaeufe.Where(x => idSet.Contains(x.Id)))
+            {
+                verkauf.InvoiceNumber = invoiceNumber;
+            }
+
+            SaveCafeVerkaeufe(verkaeufe);
+        }
 
         public decimal BerechneBuchungspreis(DateTime start, DateTime ende, decimal preisProNacht)
         {

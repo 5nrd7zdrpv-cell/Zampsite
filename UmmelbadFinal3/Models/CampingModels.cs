@@ -32,6 +32,7 @@ namespace UmmelbadFinal3.Models
         public DateTime Enddatum { get; set; } = DateTime.Today;
         public decimal Gesamtpreis { get; set; }
         public string Notizen { get; set; } = string.Empty;
+        public string? InvoiceNumber { get; set; }
     }
 
     public class Produkt
@@ -47,6 +48,7 @@ namespace UmmelbadFinal3.Models
         public List<CafePosition> Positionen { get; set; } = new();
         public Guid? KundenId { get; set; }
         public int? StellplatzId { get; set; }
+        public string? InvoiceNumber { get; set; }
         public decimal Gesamt => Positionen.Sum(p => p.Preis * p.Menge);
     }
 
