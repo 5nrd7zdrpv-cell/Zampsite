@@ -94,9 +94,9 @@ namespace UmmelbadFinal3.Services
                 {
                     c.Spacing(2);
                     c.Item().Text("Leistungsempfänger:").SemiBold();
-                    c.Item().Text(invoice.CustomerName);
-                    c.Item().Text(invoice.CustomerAddress);
-                    c.Item().Text(invoice.CustomerCity);
+                    c.Item().Text(invoice.CustomerNameSnapshot);
+                    c.Item().Text(invoice.Customer.Address);
+                    c.Item().Text(invoice.Customer.City);
                 });
 
                 col.Item().PaddingTop(6).Table(table =>
