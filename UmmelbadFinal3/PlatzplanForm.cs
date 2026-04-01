@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 using UmmelbadFinal3.Models;
 
@@ -63,23 +64,46 @@ namespace UmmelbadFinal3
             _planPanel = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackgroundImageLayout = ImageLayout.Zoom,
+                BackgroundImageLayout = ImageLayout.Stretch,
                 BorderStyle = BorderStyle.FixedSingle
             };
 
-            // Hintergrundbild (Platzplan) laden.
-            // Passe den Pfad bei Bedarf an, wenn das Bild woanders liegt.
-            var imagePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "platzplan.png");
-            if (System.IO.File.Exists(imagePath))
-            {
-                _planPanel.BackgroundImage = Image.FromFile(imagePath);
-            }
+            _planPanel.Resize += (_, _) => RepositionStellplatzButtons();
+
+            LoadPlanBackgroundImage();
 
             Controls.Add(_planPanel);
             Controls.Add(topBar);
 
             _stellplaetze = CreateDemoStellplaetze();
             RenderStellplatzButtons();
+        }
+
+        private void LoadPlanBackgroundImage()
+        {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var projectDir = AppContext.BaseDirectory;
+
+            var candidatePaths = new[]
+            {
+                Path.Combine(baseDir, "platzplan.png"),
+                Path.Combine(baseDir, "platzplan.jpg"),
+                Path.Combine(baseDir, "plan.png"),
+                Path.Combine(projectDir, "platzplan.png"),
+                Path.Combine(projectDir, "platzplan.jpg"),
+                Path.Combine(projectDir, "plan.png")
+            };
+
+            foreach (var imagePath in candidatePaths)
+            {
+                if (!File.Exists(imagePath))
+                {
+                    continue;
+                }
+
+                _planPanel.BackgroundImage = Image.FromFile(imagePath);
+                return;
+            }
         }
 
         private void RenderStellplatzButtons()
@@ -91,15 +115,12 @@ namespace UmmelbadFinal3
             {
                 var button = new Button
                 {
-                    Width = 42,
-                    Height = 28,
                     FlatStyle = FlatStyle.Flat,
-                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    Font = new Font("Segoe UI", 8f, FontStyle.Bold),
                     Text = stellplatz.Nummer,
                     Tag = stellplatz,
                     BackColor = GetStatusColor(stellplatz.Status),
-                    ForeColor = Color.Black,
-                    Location = new Point((int)stellplatz.PosX, (int)stellplatz.PosY)
+                    ForeColor = Color.Black
                 };
 
                 button.FlatAppearance.BorderColor = Color.FromArgb(50, 50, 50);
@@ -108,6 +129,30 @@ namespace UmmelbadFinal3
 
                 _planPanel.Controls.Add(button);
                 _stellplatzButtons[stellplatz.Id] = button;
+            }
+
+            RepositionStellplatzButtons();
+        }
+
+        private void RepositionStellplatzButtons()
+        {
+            foreach (var stellplatz in _stellplaetze)
+            {
+                if (!_stellplatzButtons.TryGetValue(stellplatz.Id, out var button))
+                {
+                    continue;
+                }
+
+                var x = (float)stellplatz.PosX * _planPanel.ClientSize.Width;
+                var y = (float)stellplatz.PosY * _planPanel.ClientSize.Height;
+
+                var buttonWidth = Math.Max(34, _planPanel.ClientSize.Width / 28);
+                var buttonHeight = Math.Max(22, _planPanel.ClientSize.Height / 36);
+
+                button.Size = new Size(buttonWidth, buttonHeight);
+                button.Location = new Point(
+                    Math.Max(0, (int)x - button.Width / 2),
+                    Math.Max(0, (int)y - button.Height / 2));
             }
         }
 
@@ -197,22 +242,35 @@ namespace UmmelbadFinal3
             };
         }
 
-        // Beispiel-Daten mit PosX / PosY für die Platzierung auf dem Panel.
-        // Ersetze diese Liste später durch echte Daten aus DB/API.
+        // PosX/PosY sind absichtlich normiert (0..1), damit Buttons bei Resize exakt auf dem Plan bleiben.
         private static List<Stellplatz> CreateDemoStellplaetze()
         {
             return new List<Stellplatz>
             {
-                new() { Id = 101, Nummer = "101", PosX = 420, PosY = 185, Status = StellplatzStatus.Frei },
-                new() { Id = 102, Nummer = "102", PosX = 465, PosY = 195, Status = StellplatzStatus.Belegt },
-                new() { Id = 103, Nummer = "103", PosX = 510, PosY = 205, Status = StellplatzStatus.Reserviert },
-                new() { Id = 104, Nummer = "104", PosX = 555, PosY = 215, Status = StellplatzStatus.Dauercamper },
-                new() { Id = 105, Nummer = "105", PosX = 600, PosY = 225, Status = StellplatzStatus.Frei },
-                new() { Id = 106, Nummer = "106", PosX = 645, PosY = 235, Status = StellplatzStatus.Belegt },
-                new() { Id = 107, Nummer = "107", PosX = 690, PosY = 245, Status = StellplatzStatus.Reserviert },
-                new() { Id = 108, Nummer = "108", PosX = 735, PosY = 255, Status = StellplatzStatus.Dauercamper }
+                // Oberer linker Bereich
+                new() { Id = 101, Nummer = "101", PosX = 0.385m, PosY = 0.305m, Status = StellplatzStatus.Frei },
+                new() { Id = 102, Nummer = "102", PosX = 0.410m, PosY = 0.323m, Status = StellplatzStatus.Belegt },
+                new() { Id = 103, Nummer = "103", PosX = 0.435m, PosY = 0.341m, Status = StellplatzStatus.Reserviert },
+                new() { Id = 104, Nummer = "104", PosX = 0.462m, PosY = 0.360m, Status = StellplatzStatus.Dauercamper },
+
+                // Zentraler Block
+                new() { Id = 120, Nummer = "120", PosX = 0.505m, PosY = 0.365m, Status = StellplatzStatus.Frei },
+                new() { Id = 121, Nummer = "121", PosX = 0.530m, PosY = 0.385m, Status = StellplatzStatus.Belegt },
+                new() { Id = 122, Nummer = "122", PosX = 0.555m, PosY = 0.405m, Status = StellplatzStatus.Reserviert },
+                new() { Id = 123, Nummer = "123", PosX = 0.578m, PosY = 0.425m, Status = StellplatzStatus.Dauercamper },
+
+                // Unterer linker Block
+                new() { Id = 65, Nummer = "65", PosX = 0.360m, PosY = 0.655m, Status = StellplatzStatus.Frei },
+                new() { Id = 66, Nummer = "66", PosX = 0.385m, PosY = 0.675m, Status = StellplatzStatus.Belegt },
+                new() { Id = 67, Nummer = "67", PosX = 0.410m, PosY = 0.695m, Status = StellplatzStatus.Reserviert },
+                new() { Id = 68, Nummer = "68", PosX = 0.435m, PosY = 0.715m, Status = StellplatzStatus.Dauercamper },
+
+                // Rechter Bereich
+                new() { Id = 154, Nummer = "154", PosX = 0.685m, PosY = 0.548m, Status = StellplatzStatus.Frei },
+                new() { Id = 155, Nummer = "155", PosX = 0.710m, PosY = 0.568m, Status = StellplatzStatus.Belegt },
+                new() { Id = 156, Nummer = "156", PosX = 0.735m, PosY = 0.588m, Status = StellplatzStatus.Reserviert },
+                new() { Id = 157, Nummer = "157", PosX = 0.760m, PosY = 0.608m, Status = StellplatzStatus.Dauercamper }
             };
         }
-
     }
 }
